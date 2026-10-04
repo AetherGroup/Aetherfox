@@ -1,0 +1,775 @@
+Aether: adblock and settings polish
+
+Filter-list update modes, design-switch removal from the new page, per-list update status, subhead hierarchy.
+
+Squashed from 4 units:
+
+  [core/171-list-update-modes.patch]
+  Aether: filter-list update modes (manual/automatic/scheduled)
+  
+  The auto-update checkbox becomes a three-way cadence like the
+  fingerprint profiles: manual never checks on its own, automatic checks
+  at startup, scheduled additionally re-checks while open. One-time
+  migration carries the old checkbox into Automatic.
+  
+  Gates: gate171 static asserts, series applies from base, tree diff 0/0/0,
+  TODO OK, build+package exit 0, version string, smoke clean.
+  Note (revert per direction: stock about:preferences UI dropped, only the new about:aethersettings UI is kept).
+  
+  [core/174-no-design-switch.patch]
+  Aether: interface design switch removed from the new settings
+  
+  Per direction only the new about:aethersettings is kept: the Interface
+  design row (Aether/Firefox radios) plus its restart banner leave the
+  Appearance section, with their script wiring (getDesign/applyDesign,
+  restart banner sync, restart button) and orphaned .ds/.restart CSS.
+  The aether.ui.design pref stays pinned at its "aether" default as a
+  hidden fallback for the hamburger/shields/trust gates until
+  about:preferences is deleted outright; the stock-side radios die with it.
+  
+  [core/175-list-update-status.patch]
+  Aether: filter-list rows report version and update result
+  
+  Pressing Update on a list now says what happened: the fetched version
+  plus "Updated just now" when it moved, or "Already up to date" when
+  the download matches what was stored. Built-in rows carry a persistent
+  version badge; custom rows extend their url/version line; the footer
+  "Update now" answers the same way ("Updated", "Already up to date",
+  "Updated - N failed") and refreshes every visible row so rows agree
+  with it. The engine reports per-key `changed` from both update entry
+  points and merges fetched versions into the live map so status reads
+  stay fresh without waiting for a lazy rebuild.
+  
+  [core/176-subhead-hierarchy.patch]
+  Aether: list-vendor subheads read as labels, not items
+  
+  Inside a filter category, vendor subheads ("AdGuard/uBO - Cookie
+  Notices") wore full row styling with no toggle, reading as broken
+  items. They are muted small-caps labels now, and the lists under them
+  indent one more level past the label, so the hierarchy scans at a
+  glance. Rows without a subhead stay flush under their category head.
+  diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
+index 6a30e0a15a9bd400f0ce8792f8c9d673e7df394f..6af435315c0394a3381b6505bd4cd049673bfb36 100644
+--- a/browser/app/profile/firefox.js
++++ b/browser/app/profile/firefox.js
+@@ -3359,6 +3359,11 @@ pref("aether.fingerprinting.sensors", false);
+ // Aether WebGPU protection: block the WebGPU API so pages cannot read
+ // graphics adapter details. On by default; the stock switch stays off.
+ pref("aether.fingerprinting.webgpuBlocked", true);
++// Aether filter-list update cadence: manual by default (only explicit
++// refreshes); automatic checks at startup, scheduled re-checks while open.
++pref("aether.blocking.lists.updateMode", "manual");
++// Aether filter-list update cadence step for Scheduled mode.
++pref("aether.blocking.lists.updateInterval", "24");
+ // Aether settings menu (about:aethersettings): selected color theme.
+ pref("aether.settings.theme", "light");
+ // Aether settings menu: selected accent (preset name or #rrggbb custom).
+diff --git a/browser/base/content/aethersettings/aethersettings.css b/browser/base/content/aethersettings/aethersettings.css
+index 653abf76505c952260d894ef7e4f0f5599e8bc2a..342ff47f0ab0dfd11e3fff50a62cbb088ebd9f7d 100644
+--- a/browser/base/content/aethersettings/aethersettings.css
++++ b/browser/base/content/aethersettings/aethersettings.css
+@@ -65,6 +65,8 @@ svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stro
+ .urlrow input:focus{border-color:var(--ac);outline:0}
+ .xbtn{flex:none;border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:8px;border-radius:8px}
+ .xbtn:hover{color:var(--st)}
++.intervalrow{padding-inline-start:22px}
++.intervalsel{font:inherit;color:inherit;background:var(--sf2);border:1px solid var(--ed);border-radius:8px;padding:6px 8px}
+ .stub{padding:34px;border:1.5px dashed var(--ed);border-radius:14px;color:var(--muted);text-align:center}
+ .panel[hidden]{display:none}
+ .ahead{margin-bottom:6px}
+@@ -80,6 +82,11 @@ svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stro
+ .row[hidden]{display:none}
+ /* Category children sit one level in: the header stays flush, its lists indent. */
+ .catbody{padding-inline-start:22px}
++/* List-vendor subheads are labels, not rows: muted small caps with breathing
++   room above, so they never read as a toggle-less item. */
++.subhead{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:12px 18px 2px}
++/* Items under a subhead indent one more level past their label. */
++.catbody > .row.subitem{margin-inline-start:16px}
+ .row.stack{flex-direction:column;align-items:stretch;gap:14px;padding-bottom:20px}
+ .row .t{flex:1;min-width:0}
+ .row .t b{display:block;font-weight:600;color:var(--st)}
+@@ -90,15 +97,6 @@ svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stro
+ .tg[aria-checked=true]{background:linear-gradient(135deg,var(--ac),var(--ac2))}
+ .tg[aria-checked=true]::after{transform:translateX(16px)}
+ .tg:disabled{cursor:default;opacity:.45}
+-.ds{display:flex;gap:3px;background:var(--bg);border-radius:10px;padding:4px;flex:none}
+-.ds button{border:0;background:none;border-radius:7px;padding:6px 16px;font-weight:600;color:var(--muted);cursor:pointer;white-space:nowrap}
+-.ds button[aria-checked=true]{background:var(--ac);color:var(--onac)}
+-.restart{display:flex;align-items:center;gap:14px;margin:4px 18px 14px;padding:12px 16px;border-radius:12px;background:var(--soft);border:1px solid var(--ed)}
+-.restart[hidden]{display:none}
+-.restart .t{flex:1;min-width:0}
+-.restart .t b{display:block;font-weight:600;color:var(--st)}
+-.restart .t small{display:block;color:var(--muted);font-size:12.5px}
+-.restart button{flex:none;border:0;border-radius:9px;padding:8px 16px;font-weight:700;cursor:pointer;background:var(--ac);color:var(--onac)}
+ .themes{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));column-gap:26px;row-gap:12px}
+ .th{background:none;border:0;display:flex;flex-direction:column;gap:10px;cursor:pointer;text-align:start;transition:transform .18s var(--ease);min-width:0}
+ .th:hover{transform:translateY(-3px)}
+diff --git a/browser/base/content/aethersettings/aethersettings.html b/browser/base/content/aethersettings/aethersettings.html
+index da7d487e64aa7c5fac704bb60cd4ed618e186010..6c536fdcc7f7d0d392e28b7cbe227ae4b1863624 100644
+--- a/browser/base/content/aethersettings/aethersettings.html
++++ b/browser/base/content/aethersettings/aethersettings.html
+@@ -109,9 +109,6 @@
+ <div class="hue" id="hueBar" role="slider" tabindex="0" aria-label="Hue"><span class="hue-thumb" id="hueThumb"></span></div>
+ <div class="hexrow"><span aria-hidden="true">#</span><input id="accentHex" value="6C5CE7" maxlength="6" spellcheck="false" autocomplete="off" aria-label="Hex color"></div>
+ </div></div></div>
+-<div class="row"><div class="t"><b>Interface design</b><small>Aether shows the new settings and panels. Firefox shows the stock ones.</small></div>
+-<div class="ds" role="radiogroup" aria-label="Interface design"><button role="radio" data-d="aether" aria-checked="true">Aether</button><button role="radio" data-d="firefox" aria-checked="false">Firefox</button></div></div>
+-<div class="restart" id="designRestart" hidden><div class="t"><b>Restart to apply everywhere</b><small>New windows already use the new design. Restart applies it to open tabs too.</small></div><button id="designRestartBtn" type="button">Restart now</button></div>
+ </div></section>
+ <section class="sec"><h3>Websites</h3><p>How sites see your browser.</p>
+ <div class="card"><div class="row"><div class="t"><b>Website appearance</b><small>Some websites adapt their colors to your preference. Not every site follows it.</small></div>
+diff --git a/browser/base/content/aethersettings/aethersettings.js b/browser/base/content/aethersettings/aethersettings.js
+index a34db954112e5ca4c18982b489359c972fde25e4..8faed19c7e0866d621ffc0b74e4dd072ae6661ed 100644
+--- a/browser/base/content/aethersettings/aethersettings.js
++++ b/browser/base/content/aethersettings/aethersettings.js
+@@ -37,7 +37,6 @@ const THEME_ADDONS = {
+ const THEME_PREF = "aether.settings.theme";
+ const WEB_PREF = "layout.css.prefers-color-scheme.content-override";
+ const WEB_NAMES = { 2: "system", 1: "light", 0: "dark" };
+-const DESIGN_PREF = "aether.ui.design";
+ 
+ // Every setting Aether adds is declared once in the registry; this page
+ // renders from it so it can never fall behind about:preferences.
+@@ -225,8 +224,20 @@ function buildBlockingCard(card, layers) {
+       }
+       const row = buildLayerRow(s);
+       const key = s.id.startsWith("list-") ? s.id.slice(5) : null;
++      if (sub) {
++        row.classList.add("subitem");
++      }
+       if (key) {
+         row.appendChild(buildListUpdateButton(s.label, key));
++        const sm = row.querySelector(".t > small");
++        const kv = listKnownVersion(key);
++        if (sm && kv) {
++          const badge = document.createElement("span");
++          badge.className = "listver";
++          badge.dataset.key = key;
++          badge.textContent = " · " + kv;
++          sm.appendChild(badge);
++        }
+       }
+       body.appendChild(row);
+     }
+@@ -265,11 +276,154 @@ function buildAdblockSection() {
+   card.appendChild(buildBlocklistFooter());
+   sec.appendChild(card);
+   host.appendChild(sec);
++  host.appendChild(buildUpdateModeSec());
+   host.appendChild(buildCustomSec());
+ }
+ 
++// Filter-list update cadence, chosen like the fingerprint profiles: manual
++// never checks on its own, automatic checks at startup, scheduled
++// additionally re-checks while the browser stays open.
++const UPDATE_MODES = [
++  {
++    id: "manual",
++    title: "Manual",
++    desc: "Lists update only when you press Update.",
++  },
++  {
++    id: "auto",
++    title: "Automatic",
++    desc: "Check for updates at startup.",
++  },
++  {
++    id: "scheduled",
++    title: "Scheduled",
++    desc: "Check periodically while the browser is open.",
++  },
++];
++
++function readUpdateMode() {
++  try {
++    const { AetherBlocker } = ChromeUtils.importESModule(
++      "resource://gre/modules/AetherBlocker.sys.mjs"
++    );
++    return AetherBlocker.updateMode;
++  } catch (e) {
++    return "manual";
++  }
++}
++
++function buildUpdateModeSec() {
++  const sec = document.createElement("section");
++  sec.className = "sec";
++  sec.id = "updateModeSec";
++  const h = document.createElement("h3");
++  h.textContent = "Filter list updates";
++  sec.appendChild(h);
++  const card = document.createElement("div");
++  card.className = "card";
++  const cur = readUpdateMode();
++  for (const m of UPDATE_MODES) {
++    const row = document.createElement("div");
++    row.className = "row prof-row";
++    const lab = document.createElement("label");
++    lab.className = "prof-main";
++    const radio = document.createElement("input");
++    radio.type = "radio";
++    radio.name = "aether-update-mode";
++    radio.value = m.id;
++    radio.className = "prof-radio";
++    radio.checked = cur === m.id;
++    radio.addEventListener("change", () => {
++      try {
++        Services.prefs.setStringPref(
++          "aether.blocking.lists.updateMode",
++          m.id
++        );
++      } catch (e) {}
++      syncUpdateIntervalRow();
++    });
++    const t = document.createElement("div");
++    t.className = "t";
++    const b = document.createElement("b");
++    b.textContent = m.title;
++    const sm = document.createElement("small");
++    sm.textContent = m.desc;
++    t.appendChild(b);
++    t.appendChild(sm);
++    lab.appendChild(radio);
++    lab.appendChild(t);
++    row.appendChild(lab);
++    card.appendChild(row);
++  }
++  card.appendChild(buildUpdateIntervalRow(cur === "scheduled"));
++  sec.appendChild(card);
++  return sec;
++}
++
++// Step choice for Scheduled mode (hidden otherwise): the engine reads the
++// same pref for its timer and its due check, so flips apply immediately.
++const UPDATE_INTERVALS = [
++  { hours: "12", title: "Every 12 hours" },
++  { hours: "24", title: "Every day" },
++  { hours: "168", title: "Every week" },
++];
++
++function readUpdateHours() {
++  try {
++    return Services.prefs.getStringPref(
++      "aether.blocking.lists.updateInterval",
++      "24"
++    );
++  } catch (e) {
++    return "24";
++  }
++}
++
++function buildUpdateIntervalRow(show) {
++  const row = document.createElement("div");
++  row.className = "row intervalrow";
++  row.id = "updateIntervalRow";
++  const t = document.createElement("div");
++  t.className = "t";
++  const b = document.createElement("b");
++  b.textContent = "Check every";
++  t.appendChild(b);
++  row.appendChild(t);
++  const sel = document.createElement("select");
++  sel.className = "intervalsel";
++  sel.setAttribute("aria-label", "Check every");
++  for (const o of UPDATE_INTERVALS) {
++    const op = document.createElement("option");
++    op.value = o.hours;
++    op.textContent = o.title;
++    sel.appendChild(op);
++  }
++  sel.value = readUpdateHours();
++  sel.addEventListener("change", () => {
++    try {
++      Services.prefs.setStringPref(
++        "aether.blocking.lists.updateInterval",
++        sel.value
++      );
++    } catch (e) {}
++  });
++  row.appendChild(sel);
++  row.hidden = !show;
++  return row;
++}
++
++function syncUpdateIntervalRow() {
++  const row = document.getElementById("updateIntervalRow");
++  if (!row) {
++    return;
++  }
++  row.hidden = readUpdateMode() !== "scheduled";
++}
++
+ // One-list refresh, for built-in and custom rows alike: only this list is
+-// fetched, the rest of the engine state is untouched.
++// fetched, the rest of the engine state is untouched. The row keeps a
++// persistent result: the fetched version plus whether it moved
++// ("Updated just now") or was already current ("Already up to date").
+ async function updateOneList(btn, key) {
+   btn.disabled = true;
+   btn.textContent = "Updating…";
+@@ -277,10 +431,13 @@ async function updateOneList(btn, key) {
+     const { AetherBlocker } = ChromeUtils.importESModule(
+       "resource://gre/modules/AetherBlocker.sys.mjs"
+     );
+-    await AetherBlocker.updateListNow(key);
+-    btn.textContent = "Updated";
++    const res = await AetherBlocker.updateListNow(key);
++    btn.textContent =
++      res && res.changed === false ? "Up to date" : "Updated";
++    setListBadge(btn, key, res);
+   } catch (e) {
+     btn.textContent = "Failed — retry";
++    setListBadge(btn, key, null);
+   }
+   btn.disabled = false;
+   refreshBlocklistFooter();
+@@ -289,6 +446,62 @@ async function updateOneList(btn, key) {
+   }, 4000);
+ }
+ 
++// Loaded version of one list for the row badge: "" when unknown, "Off"
++// when the list is switched off, the raw version otherwise.
++function listKnownVersion(key) {
++  try {
++    const { AetherBlocker } = ChromeUtils.importESModule(
++      "resource://gre/modules/AetherBlocker.sys.mjs"
++    );
++    const info = AetherBlocker.updateInfo();
++    const v = info.versions && info.versions[key];
++    if (!v || v === "pending") {
++      return "";
++    }
++    return v === "off" ? "Off" : v;
++  } catch (e) {
++    return "";
++  }
++}
++
++function setListBadge(btn, key, res) {
++  const row = btn.closest(".row");
++  const sm = row ? row.querySelector(".t > small") : null;
++  if (!sm) {
++    return;
++  }
++  if (key.startsWith("custom-")) {
++    const e = customListsNow().find(x => x.key === key);
++    if (!e) {
++      return;
++    }
++    const v = (res && res.version) || listKnownVersion(key);
++    const st = !res
++      ? "Update failed"
++      : res.changed === false
++        ? "Already up to date"
++        : "Updated just now";
++    sm.textContent = e.url + (v ? " · " + v : "") + " · " + st;
++    return;
++  }
++  let badge = sm.querySelector(".listver");
++  if (!badge) {
++    badge = document.createElement("span");
++    badge.className = "listver";
++    badge.dataset.key = key;
++    sm.appendChild(badge);
++  }
++  if (!res) {
++    const cur = badge.textContent.replace(/ · Update failed$/, "");
++    badge.textContent = cur + " · Update failed";
++    return;
++  }
++  const v = res.version || listKnownVersion(key);
++  const st =
++    res.changed === false ? "Already up to date" : "Updated just now";
++  badge.textContent = (v ? " · " + v : "") + " · " + st;
++}
++
+ function buildListUpdateButton(title, key) {
+   const btn = document.createElement("button");
+   btn.type = "button";
+@@ -392,6 +605,7 @@ function buildCustomRow(e, blockOff) {
+   const upd = document.createElement("button");
+   upd.type = "button";
+   upd.className = "blocklist-btn list-upd";
++  upd.dataset.key = e.key;
+   upd.textContent = "Update";
+   upd.setAttribute("aria-label", "Update " + e.url);
+   upd.addEventListener("click", () => updateOneList(upd, e.key));
+@@ -511,7 +725,7 @@ async function removeCustomList(key) {
+ }
+ function buildSubhead(text) {
+   const wrap = document.createElement("div");
+-  wrap.className = "row subhead";
++  wrap.className = "subhead";
+   const t = document.createElement("div");
+   t.className = "t";
+   const b = document.createElement("b");
+@@ -521,9 +735,8 @@ function buildSubhead(text) {
+   return wrap;
+ }
+ 
+-// Filter-list status + manual refresh (manual updates are the default, so
+-// this button is the primary update surface; the auto toggle above only
+-// schedules the same function with setup consent).
++// Filter-list status + manual refresh (the update-mode section above
++// owns the cadence; this button always refreshes right now).
+ function buildBlocklistFooter() {
+   const wrap = document.createElement("div");
+   wrap.className = "row blocklist-foot";
+@@ -548,8 +761,18 @@ function buildBlocklistFooter() {
+       const { AetherBlocker } = ChromeUtils.importESModule(
+         "resource://gre/modules/AetherBlocker.sys.mjs"
+       );
+-      await AetherBlocker.updateListsNow();
+-      btn.textContent = "Updated";
++      const res = await AetherBlocker.updateListsNow();
++      const keys = res && res.versions ? Object.keys(res.versions) : [];
++      const anyChanged = keys.some(
++        k => !res.changed || res.changed[k] !== false
++      );
++      const fails = res && res.failed ? res.failed.length : 0;
++      btn.textContent = anyChanged
++        ? fails
++          ? "Updated · " + fails + " failed"
++          : "Updated"
++        : "Already up to date";
++      refreshListBadges(res);
+     } catch (e) {
+       btn.textContent = "Failed — retry";
+     }
+@@ -565,6 +788,29 @@ function buildBlocklistFooter() {
+   return wrap;
+ }
+ 
++// After "Update now": bring every visible per-list row in line with what
++// the refresh fetched, so rows agree with the footer. Lists that failed
++// keep their old version with an "Update failed" note.
++function refreshListBadges(res) {
++  if (!res || !res.versions) {
++    return;
++  }
++  for (const btn of document.querySelectorAll("button.list-upd")) {
++    const key = btn.dataset.key;
++    if (!key || !(key in res.versions)) {
++      continue;
++    }
++    if (res.failed && res.failed.includes(key)) {
++      setListBadge(btn, key, null);
++      continue;
++    }
++    setListBadge(btn, key, {
++      version: res.versions[key],
++      changed: res.changed ? res.changed[key] !== false : true,
++    });
++  }
++}
++
+ async function refreshBlocklistFooter() {
+   const sm = document.getElementById("blocklistVersions");
+   if (!sm) {
+@@ -869,7 +1115,7 @@ function syncProtectionSection() {
+     // (setCatOpen owns it), so the master hides them via inline display
+     // instead of stomping it.
+     for (const el of ab.querySelectorAll(
+-      ".cathead, .blocklist-foot, #customListsSec"
++      ".cathead, .blocklist-foot, #customListsSec, #updateModeSec"
+     )) {
+       el.hidden = !blockMaster;
+     }
+@@ -1154,10 +1400,6 @@ document.addEventListener("click", e => {
+     applyWebScheme(Number(w.dataset.s), true);
+     return;
+   }
+-  const d = e.target.closest(".ds [data-d]");
+-  if (d && (d.dataset.d === "aether" || d.dataset.d === "firefox")) {
+-    applyDesign(d.dataset.d, true);
+-  }
+ });
+ 
+ function getWebScheme() {
+@@ -1180,49 +1422,6 @@ function applyWebScheme(v, save) {
+   }
+ }
+ 
+-function getDesign() {
+-  try {
+-    const v = Services.prefs.getStringPref(DESIGN_PREF);
+-    return v === "firefox" ? "firefox" : "aether";
+-  } catch (e) {
+-    return "aether";
+-  }
+-}
+-
+-function applyDesign(v, save) {
+-  for (const b of document.querySelectorAll(".ds [data-d]")) {
+-    b.setAttribute("aria-checked", String(b.dataset.d === v));
+-  }
+-  if (save) {
+-    try {
+-      Services.prefs.setStringPref(DESIGN_PREF, v);
+-    } catch (e) {}
+-  }
+-  syncDesignRestart(v);
+-}
+-
+-// The gates read the pref live, so new windows follow a switch right away.
+-// Open tabs keep the design they loaded with: offer a restart for those.
+-let designAtLoad = null;
+-
+-function syncDesignRestart(current) {
+-  const banner = document.getElementById("designRestart");
+-  if (!banner) {
+-    return;
+-  }
+-  const v = current || getDesign();
+-  if (designAtLoad === null) {
+-    designAtLoad = v;
+-  }
+-  banner.hidden = v === designAtLoad;
+-}
+-
+-function restartBrowser() {
+-  Services.startup.quit(
+-    Ci.nsIAppStartup.eRestart | Ci.nsIAppStartup.eAttemptQuit
+-  );
+-}
+-
+ function hexToHsv(hex) {
+   const r = parseInt(hex.substr(1, 2), 16) / 255;
+   const g = parseInt(hex.substr(3, 2), 16) / 255;
+@@ -1457,10 +1656,6 @@ document.getElementById("accentHex").addEventListener("change", e => {
+   }
+ });
+ 
+-document.getElementById("designRestartBtn").addEventListener("click", () => {
+-  restartBrowser();
+-});
+-
+ document.addEventListener("keydown", e => {
+   if (e.key === "Escape" && pickerState.open) {
+     e.preventDefault();
+@@ -1482,7 +1677,6 @@ document.addEventListener("pointerdown", e => {
+ applyTheme(getTheme(), false);
+ applyAccent(getAccent(), false);
+ applyWebScheme(getWebScheme(), false);
+-applyDesign(getDesign(), false);
+ buildProtectionSection();
+ buildAdblockSection();
+ syncProtectionSection();
+diff --git a/toolkit/modules/AetherBlocker.sys.mjs b/toolkit/modules/AetherBlocker.sys.mjs
+index 8ccecb8b326c7cb314816317525aa4db4d1bcfeb..bd91394f01020a8e963356796fc4dc79a2cfbe51 100644
+--- a/toolkit/modules/AetherBlocker.sys.mjs
++++ b/toolkit/modules/AetherBlocker.sys.mjs
+@@ -39,6 +39,7 @@ import {
+   LIST_CATALOG,
+   CATALOG_BY_KEY,
+ } from "resource://gre/modules/AetherBlockCatalog.sys.mjs";
++import { setInterval, clearInterval } from "resource://gre/modules/Timer.sys.mjs";
+ 
+ const PREF_ENABLED = "aether.blocking.enabled";
+ const PREF_CNAME = "aether.blocking.cnameUncloak";
+@@ -60,11 +61,13 @@ const MEDIA_MIN_BYTES = 512 * 1024;
+ const PREF_CONSENT = "services.aether.blocklists.enabled";
+ const PREF_AUTO = "aether.blocking.lists.autoUpdate";
+ const PREF_LAST = "aether.blocking.lists.lastUpdate";
++const PREF_UPDATE_MODE = "aether.blocking.lists.updateMode";
++const PREF_UPDATE_HOURS = "aether.blocking.lists.updateInterval";
+ const PREF_URL_EL = "aether.blocking.lists.urlEasyList";
+ const PREF_URL_EP = "aether.blocking.lists.urlEasyPrivacy";
+ const URL_EL_DEFAULT = "https://easylist.to/easylist/easylist.txt";
+ const URL_EP_DEFAULT = "https://easylist.to/easylist/easyprivacy.txt";
+-const UPDATE_INTERVAL_MS = 24 * 3600 * 1000;
++
+ const LISTS_DIR = "aether-blocklists";
+ const MIN_LIST_LINES = 5000;
+ const TOPIC_REQUEST = "http-on-modify-request";
+@@ -94,6 +97,7 @@ let profileTexts = null; // {easylist, easyprivacy} preloaded from disk
+ let loadedSource = "snapshot";
+ let loadedVersions = { easylist: EASYLIST_VERSION, easyprivacy: EASYPRIVACY_VERSION };
+ let updateFlight = null;
++let updateTimer = null;
+ let loadedKeys = [];
+ const countsByBrowser = new WeakMap();
+ const cnameCache = new Map(); // host -> {canon, time}
+@@ -511,7 +515,8 @@ export const AetherBlocker = {
+    * it runs regardless of the setup opt-in. Fetches the two base lists
+    * plus every enabled catalog list, validates, stores under the profile
+    * and rebuilds the engine lazily. A failing catalog list is skipped;
+-   * the base lists still throw.
++   * the base lists still throw. Resolves { ok, versions, changed, failed }
++   * where changed maps each fetched key to whether its version moved.
+    */
+   updateListsNow() {
+     if (updateFlight) {
+@@ -534,6 +539,7 @@ export const AetherBlocker = {
+       }
+       const out = {};
+       const failed = [];
++      const prevs = { ...loadedVersions };
+       for (const job of jobs) {
+         try {
+           const res = await fetch(job.url);
+@@ -571,10 +577,13 @@ export const AetherBlocker = {
+       profileTexts = { ...(profileTexts || {}), ...out };
+       engine = null;
+       const versions = {};
++      const changed = {};
+       for (const [key, text] of Object.entries(out)) {
+         versions[key] = listVersion(text);
++        changed[key] = prevs[key] !== versions[key];
+       }
+-      return { ok: true, versions, failed };
++      loadedVersions = { ...loadedVersions, ...versions };
++      return { ok: true, versions, changed, failed };
+     })();
+     const clear = () => {
+       updateFlight = null;
+@@ -583,17 +592,68 @@ export const AetherBlocker = {
+     return updateFlight;
+   },
+ 
++  // Update cadence: manual never checks on its own, automatic checks
++  // at startup, scheduled additionally re-checks every 24 h while open.
++  get updateMode() {
++    const v = getString(PREF_UPDATE_MODE, "");
++    if (v === "auto" || v === "scheduled" || v === "manual") {
++      return v;
++    }
++    if (getBool(PREF_AUTO, false)) {
++      return "auto";
++    }
++    return "manual";
++  },
++
++  // One-time migration: the old auto-update checkbox becomes Automatic.
++  migrateUpdateMode() {
++    try {
++      if (
++        !Services.prefs.prefHasUserValue(PREF_UPDATE_MODE) &&
++        getBool(PREF_AUTO, false)
++      ) {
++        Services.prefs.setStringPref(PREF_UPDATE_MODE, "auto");
++      }
++    } catch (e) {}
++  },
++
++  // The scheduled cadence is user-chosen (hours); both the timer and
++  // the due check below read it live, so flips apply immediately.
++  updateIntervalMs() {
++    const h = Number(getString(PREF_UPDATE_HOURS, "24"));
++    return (Number.isFinite(h) && h > 0 ? h : 24) * 3600 * 1000;
++  },
++
++  armUpdateTimer() {
++    try {
++      if (updateTimer) {
++        clearInterval(updateTimer);
++        updateTimer = null;
++      }
++    } catch (e) {}
++    try {
++      if (this.updateMode !== "scheduled") {
++        return;
++      }
++      updateTimer = setInterval(() => {
++        try {
++          this.maybeAutoUpdate();
++        } catch (e) {}
++      }, this.updateIntervalMs());
++    } catch (e) {}
++  },
++
+   maybeAutoUpdate() {
+     try {
+       if (
+         !getBool(PREF_ENABLED, false) ||
+         !getBool(PREF_CONSENT, false) ||
+-        !getBool(PREF_AUTO, false)
++        (this.updateMode !== "auto" && this.updateMode !== "scheduled")
+       ) {
+         return;
+       }
+       const last = getInt(PREF_LAST, 0) * 1000;
+-      if (Date.now() - last < UPDATE_INTERVAL_MS) {
++      if (Date.now() - last < this.updateIntervalMs()) {
+         return;
+       }
+       this.updateListsNow().catch(() => {});
+@@ -648,7 +708,8 @@ export const AetherBlocker = {
+   /**
+    * Refresh one list (built-in or custom) instead of everything: fetch,
+    * validate, store and rebuild. Base lists honour their URL prefs.
+-   * Returns { ok: true, version } and throws otherwise.
++   * Returns { ok: true, version, changed } (changed is false when the
++   * download matches what was already stored) and throws otherwise.
+    */
+   async updateListNow(key) {
+     let url = null;
+@@ -677,6 +738,7 @@ export const AetherBlocker = {
+     if (!customUrlOk(url)) {
+       throw new Error("refusing non-http list url: " + key);
+     }
++    const prev = loadedVersions[key];
+     const res = await fetch(url);
+     if (!res.ok) {
+       throw new Error("list fetch failed: " + key + " " + res.status);
+@@ -695,7 +757,9 @@ export const AetherBlocker = {
+     } catch (e) {}
+     profileTexts = { ...(profileTexts || {}), [key]: text };
+     engine = null;
+-    return { ok: true, version: listVersion(text) };
++    const version = listVersion(text);
++    loadedVersions[key] = version;
++    return { ok: true, version, changed: prev !== version };
+   },
+ 
+   blockedCountFor(browser) {
+@@ -866,6 +930,8 @@ export const AetherBlocker = {
+     refreshTestHooks();
+     mirrorStockPrefs();
+     mirrorWebGPU();
++    this.migrateUpdateMode();
++    this.armUpdateTimer();
+     Services.prefs.addObserver(PREF_ENABLED, this);
+     Services.prefs.addObserver(PREF_EXTRA, this);
+     Services.prefs.addObserver(PREF_OVERRIDES, this);
+@@ -873,6 +939,8 @@ export const AetherBlocker = {
+     Services.prefs.addObserver(PREF_LIST_EL, this);
+     Services.prefs.addObserver(PREF_LIST_EP, this);
+     Services.prefs.addObserver(PREF_NOPREFETCH, this);
++    Services.prefs.addObserver(PREF_UPDATE_MODE, this);
++    Services.prefs.addObserver(PREF_UPDATE_HOURS, this);
+     Services.prefs.addObserver(PREF_WEBGPU_BLOCKED, this);
+     Services.prefs.addObserver(PREF_LIST_PREFIX, this);
+     Services.obs.addObserver(this, TOPIC_REQUEST);
+@@ -969,6 +1037,10 @@ export const AetherBlocker = {
+       mirrorWebGPU();
+       return;
+     }
++    if (topic === PREF_UPDATE_MODE || topic === PREF_UPDATE_HOURS) {
++      this.armUpdateTimer();
++      return;
++    }
+     if (topic === TOPIC_EXAMINE) {
+       this._onExamine(subject);
+       return;
+diff --git a/toolkit/modules/AetherSettingsDefs.sys.mjs b/toolkit/modules/AetherSettingsDefs.sys.mjs
+index 8334130ab09b4ce42c29088f4cfabc7f4dac83ab..6457c0c3976c5fe39dea7c6026ace19120057398 100644
+--- a/toolkit/modules/AetherSettingsDefs.sys.mjs
++++ b/toolkit/modules/AetherSettingsDefs.sys.mjs
+@@ -256,15 +256,6 @@ const BLOCKING = [
+     description: e.blurb,
+   })),
+ 
+-  {
+-    id: "blockAutoUpdate",
+-    pref: "aether.blocking.lists.autoUpdate",
+-    default: false,
+-    l10n: "aether-block-auto-update-label",
+-    label: "Update filter lists automatically",
+-    description:
+-      "Off by default: lists refresh only when you ask, never silently.",
+-  },
+ ];
+ 
+ // Stock switches we expose rather than own: turning them on removes a

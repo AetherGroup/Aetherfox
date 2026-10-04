@@ -1,0 +1,52 @@
+name: rebase-check
+
+# Watches that the patch series keeps applying on new tags.
+# - Monthly automatic run against the latest known RELEASE tag.
+# - Manual (workflow_dispatch) with whichever tag you give it.
+# It does not touch the dev checkout: it clones clean on the runner and only
+# reports. If it fails, it opens an issue with the report (needs permissions:
+# issues: write).
+
+on:
+  schedule:
+    - cron: "0 6 1 * *"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Firefox tag (e.g. FIREFOX_154_0_RELEASE)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  rebase:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            git ls-remote --tags --sort=-v:refname \
+              https://github.com/mozilla-firefox/firefox.git \
+              'FIREFOX_*_RELEASE' | head -1 | \
+              sed 's#.*refs/tags/##' | xargs -I{} echo "tag={}" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Apply the series on a clean tree
+        id: rebase
+        run: |
+          python scripts/rebase.py --tag "${{ steps.tag.outputs.tag }}" \
+            --workdir "$RUNNER_TEMP/firefox-rebase" \
+            --report rebase-report.md
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
+      - name: Publish the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rebase-report
+          path: rebase-report.md

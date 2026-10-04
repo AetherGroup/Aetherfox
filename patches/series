@@ -1,0 +1,21 @@
+# Aether patch-stack: 18 thematic groups (squash of the 171-unit stack).
+# Quilt style. Application order. Each file carries the member headers.
+core/01-base-product.patch
+core/02-sync-wipe.patch
+core/03-telemetry-kill.patch
+core/04-telemetry-final-sweep.patch
+core/05-installer-ux.patch
+core/06-dead-callsites-a.patch
+core/07-telemetry-backends.patch
+core/08-webrtc-search-tail.patch
+core/09-ads-pocket.patch
+core/10-newtab-search-suggest.patch
+core/11-glean-dom-docs.patch
+core/12-accounts-normandy-out.patch
+core/13-fingerprinting-core.patch
+core/14-protection-panels.patch
+core/15-settings-new-page.patch
+core/16-blocker-engine.patch
+core/17-adblock-sections.patch
+core/18-adblock-polish.patch
+core/19-website-urls.patch

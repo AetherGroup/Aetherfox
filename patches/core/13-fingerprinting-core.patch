@@ -1,0 +1,1330 @@
+Aether: fingerprinting core
+
+RFP off by default, signal registry, canvas/WebGL/audio noise, core count, text metrics, master switch, audiobuffer noise, per-site exceptions, UA compat token, worker cores.
+
+Squashed from 13 units:
+
+  [core/109-disable-rfp-by-default.patch]
+  Aether: disable resistFingerprinting by default (keep code as fallback)
+  
+  Keep the RFP code in the tree but stop applying it: our own graded
+  anti-fingerprinting system replaces it piece by piece, and RFP's
+  normalize-everything policy would mask those experiments (and keeps
+  breaking sites in the meantime). The policy code stays untouched as a
+  reversible fallback; only the default flips. Until our layers land the
+  browser identifies more easily than with RFP on: accepted interim cost,
+  supersedes the old do-not-touch-RFP rule.
+  
+  [core/110-fingerprinting-signal-registry.patch]
+  Aether: commit the fingerprinting signal registry
+  
+  Commit the fingerprinting signal registry that the from-scratch graded
+  system will implement against: every script-readable surface with its
+  verified implementation location, the RFP behavior documented for
+  delimitation only, the assigned Aether policy (normalize/noise/restrict/
+  leave), the level it belongs to, and the gate that proves it. Decisions
+  already taken are pinned in _meta (third-party priority, real TZ/locale
+  in Standard, per-launch seed, local-only diagnostics, noise at read
+  time). Absent surfaces (deviceMemory, Client Hints) are recorded so
+  nobody hunts them later. New directory without moz.build, so the build
+  ignores it; later patches implement P1 canvas noise against this contract.
+  
+  [core/111-canvas-noise-2d-reads.patch]
+  Aether: deterministic per-site noise on 2D canvas reads
+  
+  First graded layer built from zero: deterministic per-site noise on 2D
+  canvas reads. A new dom/canvas module (own session secret per launch,
+  SHA-256 stretched per first-party base domain, SplitMix64 pixel stream)
+  flips the blue LSB of pixel 0 plus ~1/256 of the rest, at read time only:
+  same site+session reads identical pixels, another site reads different
+  ones, relaunch reseeds. Hooked into the single GetImageDataArray seam all
+  2D reads flow through (display path untouched); services run before the
+  cannot-GC region, the pixel pass is pure integer math. Kill pref
+  aether.fingerprinting.canvasNoise2d, default on. Encode paths
+  (toDataURL/toBlob) and WebGL/audio follow in later units. Gate: harness
+  proves same-origin reread identical, cross-origin different, pref-off
+  identical everywhere, plus CreepJS zero lies by the user.
+  
+  [core/112-canvas-noise-encode-paths.patch]
+  Aether: per-site noise on canvas encode reads
+  
+  Extend the P1b encode-path noise (toDataURL/toBlob share the owned
+  packed-BGRA copy in GetImageBuffer) with the same per-site key: blue LSB
+  via the new channel-offset parameter, display never touched. Harness now
+  digests all three read methods on both origins. Gate: every method stable
+  per site+session and differing per site with noise on; all identical with
+  the kill pref off.
+  
+  [core/113-webgl-noise-reads.patch]
+  Aether: per-site WebGL renderer strings and readback noise
+  
+  P2 WebGL, from zero: coherent per-site renderer/vendor triples plus
+  readPixels noise. A curated table of 8 Windows-plausible (vendor,
+  unmasked, masked) triples feeds masked RENDERER, UNMASKED RENDERER and
+  UNMASKED VENDOR from one per-site pick, so the three can never contradict
+  each other; masked VENDOR stays stock ("Mozilla"). RGBA8 readPixels goes
+  through the same keyed blue-LSB pass on the caller array. Shared module
+  gains the pref-parameterized key helper and SelectIndex; new webglNoise
+  kill pref default on. Gate: renderer strings + readPixels stable per
+  site+session, differing per site, masked/unmasked coherent.
+  
+  [core/114-webaudio-analyser-noise.patch]
+  Aether: per-site noise on WebAudio Analyser readouts
+  
+  P2 WebAudio, from zero: deterministic per-site noise on AnalyserNode
+  readouts (float/bit frequency + time domain), keyed like canvas/WebGL with
+  its own audioNoise kill pref. Noise lands on caller-owned arrays only, pure
+  math inside the cannot-GC region, never on the audio path. AudioBuffer
+  getChannelData is explicitly deferred: it returns the live shared buffer,
+  so read-time noise would accumulate across reads (unstable, audible); that
+  needs render-time keying in a later unit. Shared module gains KeyForAudio
+  and ApplyNoiseFloat. Gate: analyser digests stable per site+session and
+  differing per site, all three canvas methods + WebGL still green.
+  
+  [core/115-normalize-hardware-concurrency.patch]
+  Aether: report the common core count
+  
+  Layer A begins: report the common desktop core count (8) instead of the
+  real one, behind its own kill pref default on. One seam in
+  Navigator::HardwareConcurrency; internal pool sizing is unaffected in any
+  breaking direction. Harness now also asserts navigator props on both
+  origins. Gate: 8 everywhere with the pref on, real identical count with
+  it off, all previous gates still green.
+  
+  [core/116-canvas-text-metrics-nudge.patch]
+  Aether: keyed one-ulp nudge on canvas measureText
+  
+  Canvas text metrics: nudge the reported measureText width by exactly one
+  ulp, up or down per a stream keyed by site and the measured text itself.
+  Same text reads back identically per site+session; other sites pick their
+  own direction; drawing never sees it (measure branch returns before any
+  painting). Shared module gains KeyForText, FNV-1a context mixing and
+  NudgeDouble; new textMetrics kill pref default on. Harness digests five
+  font-stack widths on both origins. Gate: stable + cross-differing with
+  noise on, identical with it off, all previous gates still green.
+  
+  [core/117-fingerprinting-master-switch.patch]
+  Aether: master kill-switch for the fingerprinting system
+  
+  Master kill-switch for the whole graded system: one pref gates every
+  surface (the shared key helper and the core-count normalization both
+  check it first), with the per-surface kill prefs refining it. This is the
+  backend the end-state UI will bind (master button + one toggle per
+  surface). Default on. Gate: master-off run reads fully raw on every
+  surface, identical to the all-prefs-off control.
+  
+  [core/118-audiobuffer-channel-noise.patch]
+  Aether: key channel noise on first audio buffer extraction
+  
+  Close the getChannelData gap without touching the live reference: noise
+  the stored channel samples at most once, on first extraction, keyed by the
+  extracting reader's site (later readers stay stable; author rewrites via
+  CopyToChannel clear the key). Detached (shared) storage is never mutated:
+  CopyFromChannel noises only its outgoing copy, indexed by absolute sample
+  position so it matches a full-buffer pass. Shared module gains the offset
+  parameter on ApplyNoiseFloat. Gate: rendered-buffer digests stable per
+  site+session and differing per site, analyser gates still green.
+  
+  [core/119-per-site-fingerprint-exceptions.patch]
+  Aether: per-site fingerprinting exceptions backend
+  
+  Per-site exceptions backend (the broken-site switch will bind this):
+  exact base-domain prefs exempt a surface or all surfaces on that site,
+  checked synchronously from any thread (no sqlite, no async). The shared
+  key helper takes the surface token; the core-count normalization checks
+  its own exempt prefs via the document principal. Dynamic pref names need
+  no defaults: absent means protected.
+  
+  Plus a correctness fix its own gate caught: the 8-entry renderer table
+  collides pairwise with p=1/8 (observed live: identical unmasked strings
+  on both origins), so triples are now generated parametrically
+  (family x model x PCI ID from one keyed stream, ~800k combinations)
+  keeping the exact sanitizer-output shape and vendor/renderer coherence.
+  Gate: with canvas2d/text/cores exempted on one origin only, that origin
+  reads byte-identical raw pixels (known baseline) and real cores while the
+  other stays noised; unmasked renderer collision gone by construction.
+  
+  [core/120-firefox-ua-compat-token.patch]
+  Aether: report the Firefox UA compat token
+  
+  Google serves its legacy basic-HTML page to unknown user agents, and ours
+  carries no Firefox token (only Aether/156.0.1). Flip the upstream compat
+  switch so both the HTTP User-Agent and navigator.userAgent include
+  Firefox/156.0 alongside the honest Aether token. Side benefit: blending
+  with the Firefox anonymity set instead of a unique Aether-only UA. Stays
+  user-overridable. Gate: packaged default true, runtime UA contains the
+  token, reporter confirms the modern Google page.
+  
+  [core/121-worker-hardware-concurrency.patch]
+  Aether: common core count in workers
+  
+  Worker hardwareConcurrency leaked the real core count (caught live on
+  CreepJS: window reported 8, workers 24): WorkerNavigator has its own
+  HardwareConcurrency path. Same contract there, keyed by the worker
+  principal, honoring master, kill and exempt prefs. Shared module gains
+  the exported SiteExempted helper; both Navigator call sites use it
+  instead of inline pref plumbing. Harness spawns a same-origin worker on
+  both origins and asserts window/worker agreement. Gate: 8/8 everywhere
+  with prefs on, real/agreeing with them off, exempt split respected.
+  diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
+index 1e5ef8963cd575b9132ce265aa2ea5957e38a70b..54e12cda97a7a736f76fd15da7ea308c16a0cf7c 100644
+--- a/browser/app/profile/firefox.js
++++ b/browser/app/profile/firefox.js
+@@ -3310,7 +3310,27 @@ pref("network.captive-portal-service.enabled", false);
+ pref("network.connectivity-service.enabled", false);
+ // Security ON
+ pref("dom.security.https_only_mode", true);
+-pref("privacy.resistFingerprinting", true);
++// RFP stays in the tree but off by default: our own graded
++// anti-fingerprinting system replaces it piece by piece, and RFP
++// normalization would mask those experiments. Keep as fallback.
++pref("privacy.resistFingerprinting", false);
++// Aether graded anti-fingerprinting: master switch for the whole system.
++// Individual kill prefs below refine it; the end-state UI binds this plus
++// one toggle per surface.
++pref("aether.fingerprinting.enabled", true);
++// Aether layer B: deterministic per-site noise on canvas 2D reads.
++pref("aether.fingerprinting.canvasNoise2d", true);
++// Aether layer B: deterministic per-site WebGL renderer strings + readback.
++pref("aether.fingerprinting.webglNoise", true);
++// Aether layer B: deterministic per-site WebAudio Analyser readouts.
++pref("aether.fingerprinting.audioNoise", true);
++// Aether layer A: report the common core count.
++pref("aether.fingerprinting.hardwareConcurrency", true);
++// Aether layer B: nudge canvas measureText widths by one keyed ulp.
++pref("aether.fingerprinting.textMetrics", true);
++// Web compat: report the Firefox compat token (Google and others serve
++// their legacy page to unknown UAs). Blends us with Firefox users too.
++pref("general.useragent.compatMode.firefox", true);
+ // Local update channel (dev alpha only): AUS server on localhost.
+ // User-overridable default, no policies or banner.
+ // Release builds will point at the production AUS.
+diff --git a/dom/base/Navigator.cpp b/dom/base/Navigator.cpp
+index a7dabccf8d9d78a8cca3df3bb13ae0432ebefc73..d06d7dec4303b44d329dd8d32c113fe139c57894 100644
+--- a/dom/base/Navigator.cpp
++++ b/dom/base/Navigator.cpp
+@@ -12,6 +12,7 @@
+ #include "mozilla/MemoryReporting.h"
+ #include "mozilla/Preferences.h"
+ #include "mozilla/StaticPrefs_dom.h"
++#include "mozilla/dom/AetherCanvasNoise.h"
+ #include "mozilla/dom/BodyExtractor.h"
+ #include "mozilla/dom/FetchBinding.h"
+ #include "mozilla/dom/File.h"
+@@ -695,6 +696,22 @@ bool Navigator::GlobalPrivacyControl() {
+ }
+ 
+ uint64_t Navigator::HardwareConcurrency() {
++  // Aether layer A: report the common desktop count instead of the real
++  // one. Worker pools may size themselves from this; 8 oversubscribes
++  // small machines mildly and caps huge ones, neither breaks sites, and
++  // every user reports the same anonymity set. Per-site exempt prefs
++  // (backend for the end-state broken-site switch) restore the real count.
++  if (Preferences::GetBool("aether.fingerprinting.enabled", true) &&
++      Preferences::GetBool("aether.fingerprinting.hardwareConcurrency",
++                           true)) {
++    bool exempt = false;
++    if (Document* doc = mWindow ? mWindow->GetExtantDoc() : nullptr) {
++      exempt = AetherCanvasNoise::SiteExempted(doc->NodePrincipal(), "cores");
++    }
++    if (!exempt) {
++      return 8;
++    }
++  }
+   workerinternals::RuntimeService* rts =
+       workerinternals::RuntimeService::GetOrCreateService();
+   if (!rts) {
+diff --git a/dom/canvas/AetherCanvasNoise.cpp b/dom/canvas/AetherCanvasNoise.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..40e410caf0bb7a5555bbb5f41a9ac28b0e272bd5
+--- /dev/null
++++ b/dom/canvas/AetherCanvasNoise.cpp
+@@ -0,0 +1,243 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
++ * You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++#include "mozilla/dom/AetherCanvasNoise.h"
++
++#include "mozilla/Preferences.h"
++#include "nsCOMPtr.h"
++#include "nsICryptoHash.h"
++#include "nsIPrincipal.h"
++#include "nsIRandomGenerator.h"
++#include "nsServiceManagerUtils.h"
++
++#include <cstdlib>
++#include <cstring>
++#include <mutex>
++
++namespace mozilla::dom::AetherCanvasNoise {
++
++namespace {
++
++// Launches with the process: raw material for every per-site domain key.
++// Memory only, never persisted, never sent anywhere.
++std::once_flag gSecretOnce;
++uint8_t gSecret[32];
++bool gSecretReady = false;
++
++void InitSecret() {
++  nsresult rv;
++  nsCOMPtr<nsIRandomGenerator> rg =
++      do_GetService("@mozilla.org/security/random-generator;1", &rv);
++  if (NS_FAILED(rv)) {
++    return;
++  }
++  uint8_t* raw = nullptr;
++  rv = rg->GenerateRandomBytes(sizeof(gSecret), &raw);
++  if (NS_FAILED(rv) || !raw) {
++    return;
++  }
++  memcpy(gSecret, raw, sizeof(gSecret));
++  free(raw);
++  gSecretReady = true;
++}
++
++// SplitMix64 (Steele, Lea, Flood 2014): tiny, dependency-free, good enough
++// to turn a keyed seed into an uncorrelated per-pixel decision bit.
++uint64_t SplitMix64(uint64_t& aState) {
++  uint64_t z = (aState += 0x9E3779B97F4A7C15ull);
++  z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
++  z = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
++  return z ^ (z >> 31);
++}
++
++uint64_t LoadU64LE(const uint8_t* aBytes) {
++  uint64_t v = 0;
++  for (int i = 7; i >= 0; --i) {
++    v = (v << 8) | aBytes[i];
++  }
++  return v;
++}
++
++}  // namespace
++
++bool SiteExempted(nsIPrincipal* aPrincipal, const char* aSurface) {
++  if (!aPrincipal || !aSurface) {
++    return false;
++  }
++  nsAutoCString baseDomain;
++  if (NS_FAILED(aPrincipal->GetBaseDomain(baseDomain)) ||
++      baseDomain.IsEmpty()) {
++    return false;
++  }
++  nsAutoCString exemptAll("aether.fingerprinting.exempt.all.");
++  exemptAll.Append(baseDomain);
++  if (Preferences::GetBool(exemptAll.get(), false)) {
++    return true;
++  }
++  nsAutoCString exemptSurface("aether.fingerprinting.exempt.");
++  exemptSurface.Append(aSurface);
++  exemptSurface.Append('.');
++  exemptSurface.Append(baseDomain);
++  return Preferences::GetBool(exemptSurface.get(), false);
++}
++
++bool KeyForPref(nsIPrincipal* aPrincipal, uint8_t aDomainKey[32],
++                const char* aPrefName, const char* aSurface) {
++  // Master switch first: one pref gates the whole graded system. The
++  // per-surface kill prefs below only refine it (the end-state UI binds
++  // this master plus one toggle per surface).
++  if (!Preferences::GetBool("aether.fingerprinting.enabled", true)) {
++    return false;
++  }
++  if (!Preferences::GetBool(aPrefName, true)) {
++    return false;
++  }
++  if (!aPrincipal) {
++    return false;
++  }
++  std::call_once(gSecretOnce, InitSecret);
++  if (!gSecretReady) {
++    return false;
++  }
++  nsAutoCString baseDomain;
++  nsresult rvBD = aPrincipal->GetBaseDomain(baseDomain);
++  if (NS_FAILED(rvBD) || baseDomain.IsEmpty()) {
++    return false;
++  }
++
++  if (SiteExempted(aPrincipal, aSurface)) {
++    return false;
++  }
++
++  nsCOMPtr<nsICryptoHash> hash;
++  // NS_NewCryptoHash already initializes the object; calling Init again
++  // fails (NS_ERROR_FAILURE), so go straight to Update.
++  nsresult rv = NS_NewCryptoHash(nsICryptoHash::SHA256, getter_AddRefs(hash));
++  if (NS_FAILED(rv) || !hash) {
++    return false;
++  }
++  // Domain separation byte between secret and context: SHA256 here only
++  // stretches the secret into per-site keys, it authenticates nothing, so
++  // length-extension properties of the hash do not matter.
++  rv = hash->Update(gSecret, sizeof(gSecret));
++  if (NS_FAILED(rv)) {
++    return false;
++  }
++  const uint8_t sep = 0x00;
++  rv = hash->Update(&sep, 1);
++  if (NS_FAILED(rv)) {
++    return false;
++  }
++  rv = hash->Update(
++      reinterpret_cast<const uint8_t*>(baseDomain.BeginReading()),
++      baseDomain.Length());
++  if (NS_FAILED(rv)) {
++    return false;
++  }
++  nsAutoCString digest;
++  rv = hash->Finish(false, digest);
++  if (NS_FAILED(rv) || digest.Length() != 32) {
++    return false;
++  }
++  memcpy(aDomainKey, digest.get(), 32);
++  return true;
++}
++
++bool KeyForPrincipal(nsIPrincipal* aPrincipal, uint8_t aDomainKey[32]) {
++  return KeyForPref(aPrincipal, aDomainKey,
++                    "aether.fingerprinting.canvasNoise2d", "canvas2d");
++}
++
++bool KeyForWebGL(nsIPrincipal* aPrincipal, uint8_t aDomainKey[32]) {
++  return KeyForPref(aPrincipal, aDomainKey, "aether.fingerprinting.webglNoise",
++                    "webgl");
++}
++
++bool KeyForAudio(nsIPrincipal* aPrincipal, uint8_t aDomainKey[32]) {
++  return KeyForPref(aPrincipal, aDomainKey, "aether.fingerprinting.audioNoise",
++                    "audio");
++}
++
++bool KeyForText(nsIPrincipal* aPrincipal, uint8_t aDomainKey[32]) {
++  return KeyForPref(aPrincipal, aDomainKey, "aether.fingerprinting.textMetrics",
++                    "text");
++}
++
++uint64_t FNV1a(const char16_t* aData, uint32_t aLength) {
++  uint64_t hash = 0xCBF29CE484222325ull;
++  for (uint32_t i = 0; i < aLength; ++i) {
++    hash ^= static_cast<uint64_t>(aData[i]);
++    hash *= 0x100000001B3ull;
++  }
++  return hash;
++}
++
++double NudgeDouble(double aValue, const uint8_t aDomainKey[32],
++                   uint64_t aContext) {
++  uint64_t state =
++      LoadU64LE(aDomainKey) ^ aContext ^ 0x94D049BB133111EBull;
++  uint64_t bits;
++  memcpy(&bits, &aValue, sizeof(bits));
++  if (SplitMix64(state) & 1u) {
++    ++bits;
++  } else {
++    --bits;
++  }
++  double out;
++  memcpy(&out, &bits, sizeof(out));
++  return out;
++}
++
++uint64_t SelectIndex(const uint8_t aDomainKey[32], uint64_t aCount) {
++  if (!aCount) {
++    return 0;
++  }
++  uint64_t state = LoadU64LE(aDomainKey);
++  return SplitMix64(state) % aCount;
++}
++
++uint64_t MixOnce(uint64_t* aState) { return SplitMix64(*aState); }
++
++// Flip the representation LSB of float 0 and of the ~1/256 floats selected
++// by the keyed stream. dB magnitudes and waveforms do not change audibly or
++// analytically; the bit pattern becomes site-specific.
++void ApplyNoiseFloat(float* aData, uint32_t aCount,
++                     const uint8_t aDomainKey[32], uint32_t aStartIndex) {
++  if (!aData || !aCount) {
++    return;
++  }
++  const uint64_t keyHalf = LoadU64LE(aDomainKey);
++  for (uint64_t i = 0; i < aCount; ++i) {
++    uint64_t state =
++        keyHalf ^ ((i + aStartIndex) * 0x9E3779B97F4A7C15ull);
++    if (i + aStartIndex != 0 && (SplitMix64(state) & 0xFFu) != 0) {
++      continue;
++    }
++    uint32_t bits;
++    memcpy(&bits, &aData[i], sizeof(bits));
++    bits ^= 0x01u;
++    memcpy(&aData[i], &bits, sizeof(bits));
++  }
++}
++
++void ApplyNoise(uint8_t* aPixels, uint32_t aWidth, uint32_t aHeight,
++                const uint8_t aDomainKey[32], uint32_t aBlueOffset) {
++  if (!aPixels || !aWidth || !aHeight || aBlueOffset > 3) {
++    return;
++  }
++  const uint64_t keyHalf = LoadU64LE(aDomainKey);
++  const uint64_t count =
++      static_cast<uint64_t>(aWidth) * static_cast<uint64_t>(aHeight);
++  for (uint64_t i = 0; i < count; ++i) {
++    // Pixel 0 always carries the site key (tiny canvases included);
++    // otherwise ~1/256 of the pixels, chosen by the keyed stream.
++    uint64_t state = keyHalf ^ (i * 0x9E3779B97F4A7C15ull);
++    if (i != 0 && (SplitMix64(state) & 0xFFu) != 0) {
++      continue;
++    }
++    aPixels[i * 4 + aBlueOffset] ^= 0x01;  // blue LSB
++  }
++}
++
++}  // namespace mozilla::dom::AetherCanvasNoise
+diff --git a/dom/canvas/AetherCanvasNoise.h b/dom/canvas/AetherCanvasNoise.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..ec07bf8f0d524fbfc44ed2374af113aa716e0416
+--- /dev/null
++++ b/dom/canvas/AetherCanvasNoise.h
+@@ -0,0 +1,88 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
++ * You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++#ifndef mozilla_dom_AetherCanvasNoise_h
++#define mozilla_dom_AetherCanvasNoise_h
++
++#include <stdint.h>
++
++class nsIPrincipal;
++
++namespace mozilla::dom {
++
++// Aether graded anti-fingerprinting, layer B (canvas 2D reads).
++//
++// Deterministic per (browser launch, first-party base domain) noise applied
++// at read time only. The same site in the same session always reads back
++// identical pixels; a different site reads different pixels; a relaunch
++// reseeds everything. Only the blue LSB of pixel 0 plus ~1/256 of the
++// remaining pixels is touched, so rendering is perceptually unchanged.
++//
++// Split into two calls because SpiderMonkey forbids service calls inside
++// AutoCheckCannotGC regions: KeyForPrincipal() may touch services (random
++// generator, hash, prefs) and must run outside them; ApplyNoise() is pure
++// integer math and is safe to run on a live typed-array pointer.
++namespace AetherCanvasNoise {
++
++// True when noise applies to this read, with aDomainKey filled (32 bytes).
++// False (fail open, caller returns raw pixels) when the kill pref is off,
++// the principal has no base domain, or the session secret cannot be made.
++bool KeyForPrincipal(nsIPrincipal* aPrincipal, uint8_t aDomainKey[32]);
++
++// Same contract as KeyForPrincipal, gated by the WebGL kill pref instead of
++// the canvas one. Shares the session secret and the key schedule.
++bool KeyForWebGL(nsIPrincipal* aPrincipal, uint8_t aDomainKey[32]);
++
++// Same contract as KeyForPrincipal, gated by the audio kill pref. Used for
++// AnalyserNode readouts (caller-owned arrays only).
++bool KeyForAudio(nsIPrincipal* aPrincipal, uint8_t aDomainKey[32]);
++
++// Same contract as KeyForPrincipal, gated by the text-metrics kill pref.
++// Used for canvas measureText widths.
++bool KeyForText(nsIPrincipal* aPrincipal, uint8_t aDomainKey[32]);
++
++// Deterministic pick in [0, aCount) from a domain key. Pure integer math,
++// safe anywhere (used to choose coherent spoofed renderer/vendor pairs).
++uint64_t SelectIndex(const uint8_t aDomainKey[32], uint64_t aCount);
++
++// True when this base domain is exempted for aSurface (or for all
++// surfaces): backend for the per-site broken-site switch. Dynamic pref
++// names need no defaults; absent means protected. Thread-safe.
++bool SiteExempted(nsIPrincipal* aPrincipal, const char* aSurface);
++
++// One SplitMix64 step over an explicit state. Lets callers draw several
++// uncorrelated values from a single domain key (family, model, PCI ID)
++// without any service calls.
++uint64_t MixOnce(uint64_t* aState);
++
++// Flip the blue LSB of pixel 0 and of the ~1/256 pixels selected by
++// SplitMix64(domainKey, index). aPixels is a packed width*height buffer
++// with 4 bytes per pixel; aBlueOffset is the blue byte within a pixel
++// (2 for RGBA readback, 0 for packed BGRA encode buffers).
++void ApplyNoise(uint8_t* aPixels, uint32_t aWidth, uint32_t aHeight,
++                const uint8_t aDomainKey[32], uint32_t aBlueOffset = 2);
++
++// Flip the representation LSB of float 0 and of the ~1/256 floats selected
++// by the keyed stream. dB magnitudes and waveforms do not change audibly or
++// analytically; the bit pattern becomes site-specific. aStartIndex is the
++// absolute sample position of aData[0] (subrange copies stay consistent
++// with full-buffer passes).
++void ApplyNoiseFloat(float* aData, uint32_t aCount,
++                     const uint8_t aDomainKey[32], uint32_t aStartIndex = 0);
++
++// FNV-1a over UTF-16 text: pure, fast context mixer for per-string keying.
++// The secrecy lives in the domain key; this only separates strings.
++uint64_t FNV1a(const char16_t* aData, uint32_t aLength);
++
++// Nudge a measured double by exactly one ulp, up or down per the keyed
++// stream mixed with aContext (e.g. the FNV of the measured text). Same
++// inputs read back identically per site+session; other sites pick their own
++// direction. Layout impact is one ulp (~1e-16 relative): unobservable.
++double NudgeDouble(double aValue, const uint8_t aDomainKey[32],
++                   uint64_t aContext);
++
++}  // namespace AetherCanvasNoise
++}  // namespace mozilla::dom
++
++#endif
+diff --git a/dom/canvas/CanvasRenderingContext2D.cpp b/dom/canvas/CanvasRenderingContext2D.cpp
+index 0553126dbf189770cfa11ae127235471136ea07f..56e483cb043b5032645c9d08ab096270af8065c7 100644
+--- a/dom/canvas/CanvasRenderingContext2D.cpp
++++ b/dom/canvas/CanvasRenderingContext2D.cpp
+@@ -9,6 +9,7 @@
+ 
+ #include "CanvasImageCache.h"
+ #include "CanvasUtils.h"
++#include "mozilla/dom/AetherCanvasNoise.h"
+ #include "GeckoBindings.h"
+ #include "ImageEncoder.h"
+ #include "ImageRegion.h"
+@@ -2296,6 +2297,16 @@ UniquePtr<uint8_t[]> CanvasRenderingContext2D::GetImageBuffer(
+           out_imageSize->width * out_imageSize->height * 4,
+           SurfaceFormat::A8R8G8B8_UINT32);
+     }
++    // Aether layer B: same per-site read noise for the encode paths
++    // (toDataURL/toBlob both funnel through this owned packed-BGRA copy).
++    // Display is untouched: ret is encoded, never composited.
++    uint8_t aetherDomainKey[32];
++    if (AetherCanvasNoise::KeyForPrincipal(PrincipalOrNull(),
++                                           aetherDomainKey)) {
++      AetherCanvasNoise::ApplyNoise(ret.get(), out_imageSize->width,
++                                     out_imageSize->height, aetherDomainKey,
++                                     /*aBlueOffset=*/0);
++    }
+   }
+ 
+   return ret;
+@@ -5330,6 +5341,21 @@ UniquePtr<TextMetrics> CanvasRenderingContext2D::DrawOrMeasureText(
+   // if only measuring, don't need to do any more work
+   if (aOp == TextDrawOperation::MEASURE) {
+     aError = NS_OK;
++    // Aether layer B: nudge the reported width by one ulp in a per-site
++    // direction keyed by the measured text. Same text reads back identically
++    // per site+session; other sites pick their own direction. Drawing is
++    // untouched (this branch returns before any painting).
++    double measuredWidth = totalWidth;
++    uint8_t aetherKey[32];
++    nsIPrincipal* aetherPrincipal =
++        document ? document->NodePrincipal()
++                 : nsContentUtils::SubjectPrincipal();
++    if (AetherCanvasNoise::KeyForText(aetherPrincipal, aetherKey)) {
++      measuredWidth = AetherCanvasNoise::NudgeDouble(
++          totalWidth, aetherKey,
++          AetherCanvasNoise::FNV1a(textToDraw.BeginReading(),
++                                    textToDraw.Length()));
++    }
+     // Note that actualBoundingBoxLeft measures the distance in the leftward
+     // direction, so its sign is reversed from our usual physical coordinates.
+     double actualBoundingBoxLeft = offsetX - processor.mBoundingBox.X();
+@@ -5339,7 +5365,7 @@ UniquePtr<TextMetrics> CanvasRenderingContext2D::DrawOrMeasureText(
+     double actualBoundingBoxDescent =
+         processor.mBoundingBox.YMost() + baselineAnchor;
+     return MakeUnique<TextMetrics>(
+-        totalWidth, actualBoundingBoxLeft, actualBoundingBoxRight,
++        measuredWidth, actualBoundingBoxLeft, actualBoundingBoxRight,
+         fontMetrics.maxAscent - baselineAnchor,   // fontBBAscent
+         fontMetrics.maxDescent + baselineAnchor,  // fontBBDescent
+         actualBoundingBoxAscent, actualBoundingBoxDescent,
+@@ -6760,6 +6786,11 @@ nsresult CanvasRenderingContext2D::GetImageDataArray(
+   do {
+     uint8_t* randomData;
+     const IntSize size = readback->GetSize();
++    // Aether layer B: key the per-site read noise now, while service calls
++    // are still allowed (never inside the cannot-GC region below).
++    uint8_t aetherDomainKey[32];
++    const bool aetherNoise = AetherCanvasNoise::KeyForPrincipal(
++        &aSubjectPrincipal, aetherDomainKey);
+     nsRFPService::PotentiallyDumpImage(PrincipalOrNull(), rawData.mData,
+                                        size.width, size.height,
+                                        size.height * size.width * 4);
+@@ -6803,6 +6834,13 @@ nsresult CanvasRenderingContext2D::GetImageDataArray(
+                         aWidth * 4, SurfaceFormat::R8G8B8A8,
+                         dstWriteRect.Size());
+     }
++
++    // Aether layer B: deterministic per-site read noise on the RGBA copy.
++    // Pure integer math over the rooted array: GC-safe. The displayed
++    // canvas is untouched (this only alters what script reads back).
++    if (aetherNoise) {
++      AetherCanvasNoise::ApplyNoise(data, aWidth, aHeight, aetherDomainKey);
++    }
+   } while (false);
+ 
+   readback->Unmap();
+diff --git a/dom/canvas/ClientWebGLContext.cpp b/dom/canvas/ClientWebGLContext.cpp
+index 5aaa4279fd930d44a5982b81bb053a63e232a1ea..80cd23a948ff5c7dae56dbef18964393e0c06a53 100644
+--- a/dom/canvas/ClientWebGLContext.cpp
++++ b/dom/canvas/ClientWebGLContext.cpp
+@@ -21,6 +21,7 @@
+ #include "js/ScalarType.h"          // js::Scalar::Type
+ #include "mozilla/Base64.h"
+ #include "mozilla/EnumeratedRange.h"
++#include "mozilla/dom/AetherCanvasNoise.h"
+ #include "mozilla/RandomNum.h"
+ #include "mozilla/ResultVariant.h"
+ #include "mozilla/ScopeExit.h"
+@@ -2166,6 +2167,88 @@ Maybe<std::string> ClientWebGLContext::GetString(const GLenum pname) {
+   return ret;
+ }
+ 
++namespace {
++// Aether layer B: parametric coherent renderer/vendor spoofing. A fixed
++// table of 8 triples collides pairwise with p=1/8 (observed live), so the
++// triple is generated instead: driver family x model x PCI ID x driver
++// detail, all drawn from one keyed SplitMix stream. Every string keeps the
++// exact sanitizer-output shape, and masked/unmasked/vendor always describe
++// the same fictitious GPU, so lie detectors see no contradiction.
++struct AetherGLFamily {
++  const char* driverVendor;
++  const char* maskedDevice;
++  const char* const* models;
++  size_t modelCount;
++  const char* vendor;
++};
++const char* const kNVIDIAModels[] = {
++    "NVIDIA GeForce GTX 1060 6GB",
++    "NVIDIA GeForce RTX 3060",
++    "NVIDIA GeForce GTX 1650",
++    "NVIDIA GeForce RTX 4060",
++    "NVIDIA GeForce GT 1030",
++};
++const char* const kIntelModels[] = {
++    "Intel(R) UHD Graphics 620",
++    "Intel(R) Iris(R) Xe Graphics",
++    "Intel(R) HD Graphics 520",
++};
++const char* const kAMDModels[] = {
++    "AMD Radeon RX 580 Series",
++    "AMD Radeon(TM) Graphics",
++    "AMD Radeon RX 6600",
++};
++constexpr AetherGLFamily kAetherGLFamilies[] = {
++    {"NVIDIA", "GeForce GTX 980", kNVIDIAModels,
++     sizeof(kNVIDIAModels) / sizeof(kNVIDIAModels[0]), "Google Inc."},
++    {"Intel", "Intel(R) HD Graphics", kIntelModels,
++     sizeof(kIntelModels) / sizeof(kIntelModels[0]), "Google Inc."},
++    {"AMD", "Radeon R9 200 Series", kAMDModels,
++     sizeof(kAMDModels) / sizeof(kAMDModels[0]), "Google Inc."},
++};
++
++// Fills vendor/unmasked/masked for this principal, or false to fail open.
++bool AetherGLRendererForPrincipal(nsIPrincipal* aPrincipal,
++                                  std::string* aVendor, std::string* aUnmasked,
++                                  std::string* aMasked) {
++  uint8_t key[32];
++  if (!dom::AetherCanvasNoise::KeyForWebGL(aPrincipal, key)) {
++    return false;
++  }
++  uint64_t state = 0;
++  memcpy(&state, key, sizeof(state));
++  const size_t familyCount =
++      sizeof(kAetherGLFamilies) / sizeof(kAetherGLFamilies[0]);
++  const AetherGLFamily& family = kAetherGLFamilies
++      [dom::AetherCanvasNoise::MixOnce(&state) % familyCount];
++  // ~1/64 sessions pose as a WARP software device (common in VMs, and it
++  // gives VM users cover traffic too).
++  if ((dom::AetherCanvasNoise::MixOnce(&state) & 63u) == 0) {
++    *aVendor = "Microsoft";
++    *aUnmasked =
++        "ANGLE (Microsoft, Microsoft Basic Render Driver (0x0000008C) "
++        "Direct3D11 vs_5_0 ps_5_0, D3D11)";
++    *aMasked =
++        "ANGLE (Microsoft, Microsoft Basic Render Driver Direct3D11 vs_5_0 "
++        "ps_5_0)";
++    return true;
++  }
++  const char* model =
++      family.models[dom::AetherCanvasNoise::MixOnce(&state) %
++                    family.modelCount];
++  char pci[16];
++  snprintf(pci, sizeof(pci), "0x%08X",
++           static_cast<unsigned>(
++               dom::AetherCanvasNoise::MixOnce(&state) & 0xFFFFu));
++  *aVendor = family.vendor;
++  *aUnmasked = std::string("ANGLE (") + family.driverVendor + ", " + model +
++               " (" + pci + ") Direct3D11 vs_5_0 ps_5_0, D3D11)";
++  *aMasked = std::string("ANGLE (") + family.driverVendor + ", " +
++             family.maskedDevice + " Direct3D11 vs_5_0 ps_5_0)";
++  return true;
++}
++}  // namespace
++
+ void ClientWebGLContext::GetParameter(JSContext* cx, GLenum pname,
+                                       JS::MutableHandle<JS::Value> retval,
+                                       ErrorResult& rv, const bool debug) {
+@@ -2561,6 +2644,30 @@ void ClientWebGLContext::GetParameter(JSContext* cx, GLenum pname,
+     }
+ 
+     if (ret) {
++      // Aether layer B: coherent per-site renderer/vendor triple. Only
++      // non-generic strings are replaced ("Mozilla" fallbacks stay); masked
++      // VENDOR is already constant upstream. Masked RENDERER is replaced too
++      // because the sanitized real GPU family would otherwise leak through it
++      // and contradict the spoofed unmasked strings.
++      if (*ret != "Mozilla" &&
++          (pname == LOCAL_GL_RENDERER ||
++           pname ==
++               dom::WEBGL_debug_renderer_info_Binding::UNMASKED_RENDERER_WEBGL ||
++           pname ==
++               dom::WEBGL_debug_renderer_info_Binding::UNMASKED_VENDOR_WEBGL)) {
++        std::string spoofVendor, spoofUnmasked, spoofMasked;
++        if (AetherGLRendererForPrincipal(PrincipalOrNull(), &spoofVendor,
++                                         &spoofUnmasked, &spoofMasked)) {
++          if (pname == LOCAL_GL_RENDERER) {
++            ret = Some(std::move(spoofMasked));
++          } else if (pname == dom::WEBGL_debug_renderer_info_Binding::
++                                   UNMASKED_RENDERER_WEBGL) {
++            ret = Some(std::move(spoofUnmasked));
++          } else {
++            ret = Some(std::move(spoofVendor));
++          }
++        }
++      }
+       retval.set(StringValue(cx, *ret, rv));
+       return;
+     }
+@@ -5448,6 +5555,20 @@ void ClientWebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
+                                             state.mPixelPackState};
+     bool succeeded = DoReadPixels(desc, *range);
+     if (succeeded) {
++      // Aether layer B: same per-site read noise for WebGL RGBA8 readback.
++      // Unsigned-byte RGBA-like pixels carry blue at offset 2 (BGRA at 0);
++      // anything else fails open. The JS array is pinned here already.
++      if (type == LOCAL_GL_UNSIGNED_BYTE &&
++          (format == LOCAL_GL_RGBA || format == LOCAL_GL_SRGB_ALPHA ||
++           format == LOCAL_GL_BGRA)) {
++        uint8_t aetherKey[32];
++        if (dom::AetherCanvasNoise::KeyForWebGL(PrincipalOrNull(),
++                                               aetherKey)) {
++          dom::AetherCanvasNoise::ApplyNoise(
++              range->data(), width, height, aetherKey,
++              format == LOCAL_GL_BGRA ? 0 : 2);
++        }
++      }
+       CanvasUtils::ImageExtraction extraction =
+           ImageExtractionResult(mCanvasElement, mOffscreenCanvas);
+ 
+diff --git a/dom/canvas/moz.build b/dom/canvas/moz.build
+index b5809a1fca1bed238396bfdac6dec054a7a72a4d..39abca53b2c7974128799e9cf1581fef4f83845f 100644
+--- a/dom/canvas/moz.build
++++ b/dom/canvas/moz.build
+@@ -47,6 +47,7 @@ EXPORTS += [
+ ]
+ 
+ EXPORTS.mozilla.dom += [
++    "AetherCanvasNoise.h",
+     "CanvasGradient.h",
+     "CanvasPath.h",
+     "CanvasPattern.h",
+@@ -101,6 +102,7 @@ UNIFIED_SOURCES += [
+ ]
+ 
+ SOURCES += [
++    "AetherCanvasNoise.cpp",
+     "DrawTargetWebgl.cpp",  # Isolate Skia
+     "FilterNodeWebgl.cpp",
+     "ImageUtils.cpp",
+diff --git a/dom/media/webaudio/AnalyserNode.cpp b/dom/media/webaudio/AnalyserNode.cpp
+index 3c80514a1d51c10d677c971647eea6dbcf5d15c4..3a05ad82de2c11f13e220ac38f54e2737fd94696 100644
+--- a/dom/media/webaudio/AnalyserNode.cpp
++++ b/dom/media/webaudio/AnalyserNode.cpp
+@@ -10,6 +10,8 @@
+ #include "mozilla/Mutex.h"
+ #include "mozilla/PodOperations.h"
+ #include "mozilla/dom/AnalyserNodeBinding.h"
++#include "mozilla/dom/AetherCanvasNoise.h"
++#include "nsContentUtils.h"
+ #include "nsMathUtils.h"
+ 
+ namespace mozilla {
+@@ -214,6 +216,12 @@ void AnalyserNode::GetFloatFrequencyData(const Float32Array& aArray) {
+     return;
+   }
+ 
++  // Aether layer B: key outside the cannot-GC region; the pass below is
++  // pure math over the caller array (analysis data, never the audio path).
++  uint8_t aetherKey[32];
++  const bool aetherNoise = AetherCanvasNoise::KeyForAudio(
++      nsContentUtils::SubjectPrincipal(), aetherKey);
++
+   aArray.ProcessData([&](const Span<float>& aData, JS::AutoCheckCannotGC&&) {
+     size_t length = std::min(size_t(aData.Length()), mOutputBuffer.Length());
+ 
+@@ -221,6 +229,11 @@ void AnalyserNode::GetFloatFrequencyData(const Float32Array& aArray) {
+       aData[i] = WebAudioUtils::ConvertLinearToDecibels(
+           mOutputBuffer[i], -std::numeric_limits<float>::infinity());
+     }
++    if (aetherNoise) {
++      AetherCanvasNoise::ApplyNoiseFloat(aData.Elements(),
++                                         static_cast<uint32_t>(length),
++                                         aetherKey);
++    }
+   });
+ }
+ 
+@@ -232,6 +245,10 @@ void AnalyserNode::GetByteFrequencyData(const Uint8Array& aArray) {
+ 
+   const double rangeScaleFactor = 1.0 / (mMaxDecibels - mMinDecibels);
+ 
++  uint8_t aetherKey[32];
++  const bool aetherNoise = AetherCanvasNoise::KeyForAudio(
++      nsContentUtils::SubjectPrincipal(), aetherKey);
++
+   aArray.ProcessData([&](const Span<uint8_t>& aData, JS::AutoCheckCannotGC&&) {
+     size_t length = std::min(size_t(aData.Length()), mOutputBuffer.Length());
+ 
+@@ -245,18 +262,36 @@ void AnalyserNode::GetByteFrequencyData(const Uint8Array& aArray) {
+                    UCHAR_MAX * (decibels - mMinDecibels) * rangeScaleFactor));
+       aData[i] = static_cast<unsigned char>(scaled);
+     }
++    if (aetherNoise) {
++      AetherCanvasNoise::ApplyNoise(aData.Elements(),
++                                    static_cast<uint32_t>(length), 1,
++                                    aetherKey, /*aBlueOffset=*/0);
++    }
+   });
+ }
+ 
+ void AnalyserNode::GetFloatTimeDomainData(const Float32Array& aArray) {
++  uint8_t aetherKey[32];
++  const bool aetherNoise = AetherCanvasNoise::KeyForAudio(
++      nsContentUtils::SubjectPrincipal(), aetherKey);
++
+   aArray.ProcessData([&](const Span<float>& aData, JS::AutoCheckCannotGC&&) {
+     size_t length = std::min(aData.Length(), size_t(FftSize()));
+ 
+     GetTimeDomainData(aData.Elements(), length);
++    if (aetherNoise) {
++      AetherCanvasNoise::ApplyNoiseFloat(aData.Elements(),
++                                         static_cast<uint32_t>(length),
++                                         aetherKey);
++    }
+   });
+ }
+ 
+ void AnalyserNode::GetByteTimeDomainData(const Uint8Array& aArray) {
++  uint8_t aetherKey[32];
++  const bool aetherNoise = AetherCanvasNoise::KeyForAudio(
++      nsContentUtils::SubjectPrincipal(), aetherKey);
++
+   aArray.ProcessData([&](const Span<uint8_t>& aData, JS::AutoCheckCannotGC&&) {
+     size_t length = std::min(aData.Length(), size_t(FftSize()));
+ 
+@@ -275,6 +310,10 @@ void AnalyserNode::GetByteTimeDomainData(const Uint8Array& aArray) {
+           std::max(0.0f, std::min(float(UCHAR_MAX), 128.0f * (value + 1.0f)));
+       buffer[i] = static_cast<unsigned char>(scaled);
+     }
++    if (aetherNoise) {
++      AetherCanvasNoise::ApplyNoise(buffer, static_cast<uint32_t>(length), 1,
++                                     aetherKey, /*aBlueOffset=*/0);
++    }
+   });
+ }
+ 
+diff --git a/dom/media/webaudio/AudioBuffer.cpp b/dom/media/webaudio/AudioBuffer.cpp
+index 74fe4e647043868958b1bc0578e8254c06b7bf12..b00fa07710f7345af29b7e867021638e6a6a438a 100644
+--- a/dom/media/webaudio/AudioBuffer.cpp
++++ b/dom/media/webaudio/AudioBuffer.cpp
+@@ -17,6 +17,8 @@
+ #include "mozilla/MemoryReporting.h"
+ #include "mozilla/PodOperations.h"
+ #include "mozilla/dom/AudioBufferBinding.h"
++#include "mozilla/dom/AetherCanvasNoise.h"
++#include "nsContentUtils.h"
+ #include "nsPrintfCString.h"
+ #include "nsTHashSet.h"
+ 
+@@ -321,6 +323,15 @@ void AudioBuffer::CopyFromChannel(const Float32Array& aDestination,
+   if (aBufferOffset >= length) {
+     return;
+   }
++
++  // Stored arrays first: same once-guard as GetChannelData, so every
++  // extraction path agrees on the values. The copy-out key below is keyed
++  // up here too: service calls are forbidden inside cannot-GC regions.
++  MaybeNoiseStoredChannels();
++  uint8_t aetherCopyKey[32];
++  const bool aetherCopyNoise = AetherCanvasNoise::KeyForAudio(
++      nsContentUtils::SubjectPrincipal(), aetherCopyKey);
++
+   JS::AutoCheckCannotGC nogc;
+   MOZ_RELEASE_ASSERT(!JS_GetTypedArraySharedness(aDestination.Obj()));
+   auto calculateCount = [=](uint32_t aLength) -> uint32_t {
+@@ -348,10 +359,18 @@ void AudioBuffer::CopyFromChannel(const Float32Array& aDestination,
+   }
+ 
+   if (!mSharedChannels.IsNull()) {
++    // Detached storage: leave the shared samples alone and noise only this
++    // outgoing copy, indexed by absolute sample position so it matches what
++    // a full-buffer pass would have produced at these positions.
+     aDestination.ProcessData([&](const Span<float>& aData,
+                                  JS::AutoCheckCannotGC&&) {
++      uint32_t count = calculateCount(aData.Length());
+       CopyChannelDataToFloat(mSharedChannels, aChannelNumber, aBufferOffset,
+-                             aData.Elements(), calculateCount(aData.Length()));
++                             aData.Elements(), count);
++      if (aetherCopyNoise) {
++        AetherCanvasNoise::ApplyNoiseFloat(aData.Elements(), count,
++                                           aetherCopyKey, aBufferOffset);
++      }
+     });
+     return;
+   }
+@@ -399,6 +418,9 @@ void AudioBuffer::CopyToChannel(JSContext* aJSContext,
+     MOZ_ASSERT(!isShared);
+     PodMove(channelData + aBufferOffset, aData.Elements(), count);
+   });
++  // Author data just landed: previous site key no longer describes these
++  // samples. Next extraction re-keys from scratch.
++  mAetherNoised = false;
+ }
+ 
+ void AudioBuffer::GetChannelData(JSContext* aJSContext, uint32_t aChannel,
+@@ -415,9 +437,41 @@ void AudioBuffer::GetChannelData(JSContext* aJSContext, uint32_t aChannel,
+     return;
+   }
+ 
++  MaybeNoiseStoredChannels();
++
+   aRetval.set(mJSChannels[aChannel]);
+ }
+ 
++// Aether layer B: noise the stored channel samples at most once, keyed by
++// the extracting reader's site. Buffers shared across contexts keep the
++// first reader's key (stable everywhere); author rewrites clear it.
++void AudioBuffer::MaybeNoiseStoredChannels() {
++  if (mAetherNoised) {
++    return;
++  }
++  uint8_t key[32];
++  if (!AetherCanvasNoise::KeyForAudio(nsContentUtils::SubjectPrincipal(),
++                                      key)) {
++    return;
++  }
++  JS::AutoCheckCannotGC nogc;
++  for (uint32_t c = 0; c < mJSChannels.Length(); ++c) {
++    JSObject* arr = mJSChannels[c];
++    if (!arr || JS_GetTypedArrayLength(arr) != Length()) {
++      return;
++    }
++  }
++  for (uint32_t c = 0; c < mJSChannels.Length(); ++c) {
++    bool isShared = false;
++    float* data = JS_GetFloat32ArrayData(mJSChannels[c], &isShared, nogc);
++    if (!data || isShared) {
++      return;
++    }
++    AetherCanvasNoise::ApplyNoiseFloat(data, Length(), key);
++  }
++  mAetherNoised = true;
++}
++
+ already_AddRefed<ThreadSharedFloatArrayBufferList>
+ AudioBuffer::StealJSArrayDataIntoSharedChannels(JSContext* aJSContext) {
+   nsPIDOMWindowInner* global = GetParentObject();
+diff --git a/dom/media/webaudio/AudioBuffer.h b/dom/media/webaudio/AudioBuffer.h
+index ad0313964f0603b26da516c18555accf30de456c..84bc785aca6b848ddbe35f704b06b1ab6564d836 100644
+--- a/dom/media/webaudio/AudioBuffer.h
++++ b/dom/media/webaudio/AudioBuffer.h
+@@ -117,6 +117,13 @@ class AudioBuffer final : public nsWrapperCache {
+ 
+   void ClearJSChannels();
+ 
++  // Aether layer B: the stored channel samples are noised at most once, on
++  // first extraction by a reader, keyed by that reader's site. Later reads
++  // (whoever shares the buffer) stay stable. Author writes via CopyToChannel
++  // clear it. A concurrent first-read race fails open to raw samples.
++  void MaybeNoiseStoredChannels();
++  bool mAetherNoised = false;
++
+   // Float32Arrays
+   AutoTArray<JS::Heap<JSObject*>, 2> mJSChannels;
+   // mSharedChannels aggregates the data from mJSChannels. This is non-null
+diff --git a/dom/workers/WorkerNavigator.cpp b/dom/workers/WorkerNavigator.cpp
+index 519668019e4532e97231be959c69efd3ad3995d0..baa50bab096fc0264ba456976929ddb3c326c6e2 100644
+--- a/dom/workers/WorkerNavigator.cpp
++++ b/dom/workers/WorkerNavigator.cpp
+@@ -9,6 +9,8 @@
+ #include "RuntimeService.h"
+ #include "WorkerRunnable.h"
+ #include "WorkerScope.h"
++#include "mozilla/Preferences.h"
++#include "mozilla/dom/AetherCanvasNoise.h"
+ #include "mozilla/dom/LockManager.h"
+ #include "mozilla/dom/MediaCapabilities.h"
+ #include "mozilla/dom/Navigator.h"
+@@ -227,11 +229,25 @@ void WorkerNavigator::GetUserAgent(nsString& aUserAgent, CallerType aCallerType,
+ }
+ 
+ uint64_t WorkerNavigator::HardwareConcurrency() const {
++  // Aether layer A, same contract as window Navigator::HardwareConcurrency:
++  // common count behind master + kill prefs, per-site exempt honored.
++  // WorkerPrivate carries the worker principal for the exempt check.
++  WorkerPrivate* aWorkerPrivate = GetCurrentThreadWorkerPrivate();
++
++  bool normalize = Preferences::GetBool("aether.fingerprinting.enabled",
++                                        true) &&
++                   Preferences::GetBool(
++                       "aether.fingerprinting.hardwareConcurrency", true);
++  if (normalize && aWorkerPrivate) {
++    if (!AetherCanvasNoise::SiteExempted(aWorkerPrivate->GetPrincipal(),
++                                         "cores")) {
++      return 8;
++    }
++  }
++
+   RuntimeService* rts = RuntimeService::GetService();
+   MOZ_ASSERT(rts);
+ 
+-  WorkerPrivate* aWorkerPrivate = GetCurrentThreadWorkerPrivate();
+-
+   return rts->ClampedHardwareConcurrency(
+       aWorkerPrivate->ShouldResistFingerprinting(
+           RFPTarget::NavigatorHWConcurrency),
+diff --git a/toolkit/components/fingerprinting/signals.json b/toolkit/components/fingerprinting/signals.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..177f009be6e4a72d341461cbda52d5cd27c564e0
+--- /dev/null
++++ b/toolkit/components/fingerprinting/signals.json
+@@ -0,0 +1,229 @@
++{
++  "_meta": {
++    "version": 1,
++    "owner": "Aether graded anti-fingerprinting (from-scratch system)",
++    "rules": "One entry per script-readable surface. Policy values: normalize | noise | restrict | leave | na. Levels: Standard (default, near-zero breakage) | Strict | Maximum (RFP fallback). RFP behavior is documented for delimitation only; nothing here reuses RFP code paths.",
++    "decisions": [
++      "Threat priority: cross-site third-party tracking; network-level and behavioral biometrics out of scope.",
++      "Standard keeps real timezone and locale; normalization is per-site opt-in.",
++      "Deterministic noise seed rotates every launch: HMAC(session_secret, eTLD+1), memory only.",
++      "Diagnostics are local opt-in logs that never leave the disk.",
++      "Noise applies at read time (getImageData, toDataURL, readPixels), never at draw time."
++    ]
++  },
++  "absent": [
++    "navigator.deviceMemory does not exist in Gecko (no entry needed).",
++    "Sec-CH-UA Client Hints are not implemented in Firefox 156 (no entry needed)."
++  ],
++  "canvas2d": [
++    {
++      "surface": "CanvasRenderingContext2D.getImageData",
++      "impl": "dom/canvas/CanvasRenderingContext2D.cpp:6614",
++      "rfp_today": "CanvasRandomization / extraction prompt gates",
++      "policy": "noise",
++      "level": "Standard",
++      "gate": "P1: identical canvas reads twice in same site+session; different across sites; CreepJS zero lies"
++    },
++    {
++      "surface": "HTMLCanvasElement.toDataURL",
++      "impl": "dom/html/HTMLCanvasElement.cpp:797",
++      "rfp_today": "CallerCanRead + extraction-permission check",
++      "policy": "noise",
++      "level": "Standard",
++      "gate": "P1: same as getImageData"
++    },
++    {
++      "surface": "HTMLCanvasElement.toBlob / OffscreenCanvas.convertToBlob",
++      "impl": "dom/html/HTMLCanvasElement.cpp:1042, dom/canvas/OffscreenCanvas.cpp:475",
++      "rfp_today": "usage recording + RFP gate (OffscreenCanvas.cpp:622)",
++      "policy": "noise",
++      "level": "Standard",
++      "gate": "P1: same as getImageData"
++    },
++    {
++      "surface": "Canvas text metrics (measureText and draw-measure path)",
++      "impl": "dom/canvas/CanvasRenderingContext2D.cpp:4726",
++      "rfp_today": "font visibility restriction",
++      "policy": "noise",
++      "level": "Standard",
++      "gate": "P2: font-enumeration scripts cannot distinguish sites; editors unaffected"
++    },
++    {
++      "surface": "CanvasRenderingContext2D.isPointInPath",
++      "impl": "dom/canvas/CanvasRenderingContext2D.cpp:5598",
++      "rfp_today": "extraction prompt gate",
++      "policy": "leave",
++      "level": "Standard",
++      "gate": "No change; boolean hit-test carries negligible entropy"
++    }
++  ],
++  "webgl": [
++    {
++      "surface": "WebGLRenderingContext.getParameter RENDERER/VENDOR (+ WEBGL_debug_renderer_info)",
++      "impl": "dom/canvas/ClientWebGLContext.cpp:2169,2500",
++      "rfp_today": "WebGLRenderInfo / VendorSanitize / VendorRandomize targets",
++      "policy": "noise",
++      "level": "Standard",
++      "gate": "P2: renderer string stable per site+session, differs per site; stays plausible for the OS/GPU"
++    },
++    {
++      "surface": "WebGLRenderingContext.readPixels",
++      "impl": "dom/canvas/ClientWebGLContext.cpp:5385,5404",
++      "rfp_today": "usage recording",
++      "policy": "noise",
++      "level": "Standard",
++      "gate": "P2: same determinism contract as canvas 2D"
++    },
++    {
++      "surface": "WebGLRenderingContext.getSupportedExtensions",
++      "impl": "dom/canvas/ClientWebGLContext.cpp:6399",
++      "rfp_today": "filtered on WebGLRenderInfo",
++      "policy": "leave",
++      "level": "Standard",
++      "gate": "No change in Standard (feature detection must work); revisit in Strict"
++    }
++  ],
++  "webaudio": [
++    {
++      "surface": "AudioBuffer.getChannelData / copyFromChannel",
++      "impl": "dom/media/webaudio/AudioBuffer.cpp:404,312",
++      "rfp_today": "no dedicated gate (offline render is deterministic)",
++      "policy": "noise",
++      "level": "Standard",
++      "gate": "P2: offline-render hash stable per site+session, differs per site"
++    },
++    {
++      "surface": "AnalyserNode getFloat/getByte frequency+time domain data",
++      "impl": "dom/media/webaudio/AnalyserNode.cpp:211,227,251,259",
++      "rfp_today": "no dedicated gate",
++      "policy": "noise",
++      "level": "Standard",
++      "gate": "P2: same determinism contract as canvas"
++    },
++    {
++      "surface": "AudioContext.sampleRate",
++      "impl": "dom/media/webaudio/AudioContext.cpp:145",
++      "rfp_today": "AudioSampleRate clamp",
++      "policy": "leave",
++      "level": "Standard",
++      "gate": "No change in Standard; revisit in Strict"
++    }
++  ],
++  "navigator": [
++    {
++      "surface": "navigator.hardwareConcurrency",
++      "impl": "dom/base/Navigator.cpp:697",
++      "rfp_today": "NavigatorHWConcurrency clamp (tiered variant exists)",
++      "policy": "normalize",
++      "level": "Standard",
++      "gate": "Common value (8); verify no worker-pool sizing breakage in compat suite"
++    },
++    {
++      "surface": "navigator.platform / oscpu / appVersion / buildID",
++      "impl": "dom/base/Navigator.cpp:2030,457,2064,620",
++      "rfp_today": "spoofed constants",
++      "policy": "leave",
++      "level": "Standard",
++      "gate": "Real values in Standard (coherence with UA); spoofing reserved for Strict"
++    },
++    {
++      "surface": "navigator.languages",
++      "impl": "dom/base/Navigator.cpp:412",
++      "rfp_today": "forced en-US via JSLocale",
++      "policy": "leave",
++      "level": "Standard",
++      "gate": "Real values in Standard per user decision"
++    },
++    {
++      "surface": "navigator.plugins / mimeTypes",
++      "impl": "dom/base/Navigator.cpp:516",
++      "rfp_today": "already empty (PDF entry hidden)",
++      "policy": "leave",
++      "level": "Standard",
++      "gate": "No change; already minimal"
++    },
++    {
++      "surface": "navigator.getBattery",
++      "impl": "dom/base/Navigator.cpp:1439, dom/battery/BatteryManager.cpp:102",
++      "rfp_today": "level clamped to 1 decimal",
++      "policy": "leave",
++      "level": "Standard",
++      "gate": "No change in Standard"
++    },
++    {
++      "surface": "navigator.connection",
++      "impl": "dom/base/Navigator.cpp:1910",
++      "rfp_today": "NetworkConnection spoof flag",
++      "policy": "leave",
++      "level": "Standard",
++      "gate": "No change in Standard"
++    },
++    {
++      "surface": "navigator.mediaDevices.enumerateDevices",
++      "impl": "dom/media/MediaDevices.cpp:172",
++      "rfp_today": "fake device list gates",
++      "policy": "restrict",
++      "level": "Strict",
++      "gate": "Standard leaves it; Strict returns empty/generic without prior permission"
++    }
++  ],
++  "screen_window": [
++    {
++      "surface": "screen.width/height/availWidth/availHeight",
++      "impl": "dom/base/nsScreen.cpp:70,102",
++      "rfp_today": "inner-window rect substitution",
++      "policy": "leave",
++      "level": "Standard",
++      "gate": "No change in Standard (layout needs it); bucketing reserved for Strict"
++    },
++    {
++      "surface": "window.devicePixelRatio / outer sizes / screenX/Y",
++      "impl": "dom/base/nsGlobalWindowInner.cpp:3769, dom/base/nsGlobalWindowOuter.cpp:3546,3574",
++      "rfp_today": "WindowDevicePixelRatio / WindowOuterSize / letterboxing",
++      "policy": "leave",
++      "level": "Standard",
++      "gate": "No change in Standard"
++    }
++  ],
++  "time_locale": [
++    {
++      "surface": "Date.getTimezoneOffset / date formatting timezone",
++      "impl": "js/src/builtin/Date.cpp:2861, dom/base/Document.cpp:4491",
++      "rfp_today": "forced UTC via JSDateTimeUTC",
++      "policy": "leave",
++      "level": "Standard",
++      "gate": "Real timezone in Standard per user decision; UTC reserved for Strict"
++    },
++    {
++      "surface": "Intl resolvedOptions locale/calendar/timeZone",
++      "impl": "intl/components/src/DateTimeFormat.cpp:974",
++      "rfp_today": "spoofed en-US locale",
++      "policy": "leave",
++      "level": "Standard",
++      "gate": "Real locale in Standard per user decision"
++    },
++    {
++      "surface": "High-resolution timers (performance.now and wrappers)",
++      "impl": "toolkit/components/resistfingerprinting/nsRFPService.cpp:681",
++      "rfp_today": "20us unconditional clamp + RFP resolution",
++      "policy": "leave",
++      "level": "Standard",
++      "gate": "Keep existing baseline clamp; no new timer work in P1"
++    }
++  ],
++  "network_identity": [
++    {
++      "surface": "HTTP User-Agent header",
++      "impl": "netwerk/protocol/http/nsHttpHandler.cpp:983,440",
++      "rfp_today": "spoofed UA builder (nsRFPService.cpp:976)",
++      "policy": "leave",
++      "level": "Standard",
++      "gate": "Real UA in Standard (coherence with navigator.*); spoofing reserved for Strict"
++    }
++  ],
++  "later_layers": [
++    "Layer C access control (canvas read without gesture, sensors, gamepad): restrict in Strict, after P1.",
++    "Layer D heuristic per-script scoring: only if A+B miss the targets; thresholds fixed unless local opt-in log says otherwise.",
++    "Layer E coherence profiles: derived automatically once Standard values are fixed; validated with CreepJS zero-lies gate."
++  ]
++}

@@ -1,0 +1,181 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+/* Aether About dialog theme v2. Deep navy (not the earlier purple),
+ * per-section cards, same family as setup/changelog. */
+
+@media not ((prefers-contrast) and (prefers-color-scheme: light)) {
+  #aboutDialogContainer {
+    background: linear-gradient(165deg, #0d2036 0%, #0a1526 55%, #060b14 100%);
+    color: #fff;
+    color-scheme: dark;
+  }
+
+  #bottomBox {
+    background-color: hsla(210, 50%, 8%, 0.55);
+  }
+}
+
+#clientBox {
+  min-width: 600px;
+}
+
+/* Aether: no side logo (no #leftBox); full-width panels. */
+
+#rightBox {
+  background-image: url("chrome://branding/content/aether-lockup.png");
+  background-size: 230px auto;
+  margin-inline: 26px;
+  padding-top: 50px;
+  max-width: 560px;
+}
+
+/* Tarjetas */
+#aetherIdentity,
+#firefoxSection {
+  background-color: rgba(125, 189, 255, 0.07);
+  border: 1px solid rgba(125, 189, 255, 0.16);
+  border-radius: 14px;
+  padding: 13px 17px 11px;
+  margin-bottom: 12px;
+}
+
+#aetherIdentity {
+  margin-top: 14px;
+}
+
+#firefoxSection {
+  background-color: rgba(255, 255, 255, 0.035);
+  border-color: rgba(255, 255, 255, 0.09);
+}
+
+#aetherIdentity #distribution {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  margin: 0;
+}
+
+/* Aether: title + version on one row, What's New as a prominent button. */
+#aetherTitleRow {
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 8px;
+}
+
+#aetherIdentity #releasenotes {
+  appearance: none;
+  background-color: #4da3ff;
+  color: #06121f;
+  border-radius: 8px;
+  padding: 4px 14px;
+  font-weight: 700;
+  font-size: 12.5px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+#aetherIdentity #releasenotes:hover {
+  background-color: #7dbdff;
+  color: #06121f;
+}
+
+#aetherFirefoxLabel {
+  color: #8a9bb3;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  margin: 0 0 4px;
+}
+
+#firefoxSection #version {
+  color: #d7dee9;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Aether: updateBox lives inside the identity card (next to the version),
+   no nested card. */
+#aetherIdentity #updateBox {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  margin: 0 0 10px;
+}
+
+#aetherFirefoxDivider {
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  margin: 8px 0;
+}
+
+#aetherFirefoxDisclaimer {
+  color: #8a9bb3;
+  font-size: 12.5px;
+  margin: 0;
+}
+
+#updateBox .text-link,
+#contributeDesc .text-link,
+#communityDesc .text-link,
+#communityExperimentalDesc .text-link {
+  color: #4da3ff;
+}
+
+#checkForUpdatesButton,
+#downloadAndInstallButton,
+#updateButton {
+  appearance: none;
+  background-color: #4da3ff;
+  color: #06121f;
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 18px;
+  font-weight: 600;
+}
+
+#checkForUpdatesButton:hover,
+#downloadAndInstallButton:hover,
+#updateButton:hover {
+  background-color: #7dbdff;
+}
+
+#checkForUpdatesButton:focus-visible,
+#downloadAndInstallButton:focus-visible,
+#updateButton:focus-visible {
+  outline: 2px solid #7dbdff;
+  outline-offset: 2px;
+}
+
+.text-blurb {
+  color: #cfd8e3;
+}
+
+#currentChannelText {
+  color: #8a9bb3;
+  font-size: 12.5px;
+}
+
+#warningDesc {
+  color: #ffd479;
+}
+
+#bottomBox {
+  padding: 15px 10px;
+}
+
+#bottomBox .bottom-link {
+  color: #8a9bb3;
+}
+
+#bottomBox .bottom-link:hover {
+  color: #fff;
+}
+
+#trademark {
+  color: #5d6b82;
+  font-size: 11px;
+}
