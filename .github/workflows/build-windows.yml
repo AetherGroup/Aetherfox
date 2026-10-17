@@ -1,4 +1,11 @@
-name: aether-windows
+name: aetherfox-windows
+
+# This workflow builds Aetherfox on Windows.
+# NOTE: A full Firefox build requires ~60 GB free disk and 1-3 hours.
+# GitHub's free runners (windows-2022) have 14 GB disk and 6-hour max runtime,
+# so this workflow will NOT complete on a free self-hosted runner without
+# significant modifications. It is provided as a template for a self-hosted
+# runner or for reference.
 
 on:
   push:
@@ -13,7 +20,10 @@ jobs:
 
       - name: Read Firefox tag
         shell: pwsh
-        run: Get-Content firefox_version.txt
+        run: |
+          $tag = (Get-Content firefox_version.txt -Raw).Trim()
+          echo "Firefox tag: $tag"
+          "tag=$tag" >> $env:GITHUB_OUTPUT
 
       - name: Setup MozillaBuild deps (sccache)
         shell: pwsh
@@ -23,21 +33,37 @@ jobs:
 
       - name: Sync Firefox + check patch-stack
         shell: pwsh
-        run: python scripts/sync.py --no-download
+        run: |
+          # Clone Firefox at the pinned tag (short path for MAX_PATH)
+          $src = "C:\fs"
+          git clone --branch ${{ steps.tag.outputs.tag }} --depth 1 `
+            https://github.com/mozilla-firefox/firefox.git $src
+
+          # Apply the patch stack
+          python scripts/sync.py --src $src --apply --no-download
 
       - name: Build (full)
         shell: pwsh
         env:
           MOZCONFIG: ${{ github.workspace }}\mozconfig.windows
-        run: python scripts/build.py
+          MOZ_APP_NAME: aether
+          MAR_CHANNEL_ID: aether-release
+          ACCEPTED_MAR_CHANNEL_IDS: aether-release
+        run: |
+          python scripts/build.py --src C:\fs
+
+      - name: Privacy check
+        shell: pwsh
+        run: |
+          python scripts/verify-flags.py --objdir C:\fs\obj-aether
 
       - name: Hash artifacts
         shell: pwsh
-        run: Get-ChildItem -Recurse obj-aether\dist | Select-Object FullName
+        run: Get-ChildItem -Recurse C:\fs\obj-aether\dist | Select-Object FullName
 
       - uses: actions/upload-artifact@v4
         with:
-          name: aether-0.1.0-windows-x64
+          name: aetherfox-0.1.0-windows-x64
           path: |
-            firefox-src/obj-aether/dist/**/*.zip
-            firefox-src/obj-aether/dist/**/*.exe
+            C:\fs/obj-aether/dist/**/*.zip
+            C:\fs/obj-aether/dist/**/*.exe

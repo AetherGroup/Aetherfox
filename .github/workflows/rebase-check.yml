@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Firefox tag (e.g. FIREFOX_154_0_RELEASE)"
+        description: "Firefox tag (e.g. FIREFOX_156_0_1_RELEASE)"
         required: false
         default: ""
 
@@ -26,6 +26,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+          git config --global credential.helper ""
+          git config --global core.autocrlf false
+          git config --global core.longpaths true
+
       - name: Resolve tag
         id: tag
         run: |
@@ -37,6 +50,7 @@ jobs:
               'FIREFOX_*_RELEASE' | head -1 | \
               sed 's#.*refs/tags/##' | xargs -I{} echo "tag={}" >> "$GITHUB_OUTPUT"
           fi
+
       - name: Apply the series on a clean tree
         id: rebase
         run: |
@@ -44,6 +58,7 @@ jobs:
             --workdir "$RUNNER_TEMP/firefox-rebase" \
             --report rebase-report.md
           echo "exit=$?" >> "$GITHUB_OUTPUT"
+
       - name: Publish the report
         if: always()
         uses: actions/upload-artifact@v4
