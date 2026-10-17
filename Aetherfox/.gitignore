@@ -1,0 +1,28 @@
+# Aether build outputs, Firefox objdir, third-party downloads
+obj-*/
+obj-aether/
+third_party/
+out/
+*.pyc
+__pycache__/
+.vs/
+.vscode/
+
+logs/
+
+# Git bundles: history backups, out of version control.
+# GitHub rejects files >100 MB and these copies reach gigabytes.
+*.bundle
+
+# .NET build outputs
+[Bb]in/
+[Oo]bj/
+
+# Rust build outputs (installer engine)
+target/
+
+
+dist-test/
+
+# mach-generated build info (sits at repo root after a build)
+mozinfo.json

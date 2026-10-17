@@ -1,0 +1,2426 @@
+Aether: adblock sections
+
+Own Ad blocking section, site panel, blocked count, list layout, master switch, master and custom lists, fingerprint copy and Strict opt-ins.
+
+Squashed from 7 units:
+
+  [core/163-adblock-own-section.patch]
+  Aether: ad blocking gets its own section with collapsed categories
+  
+  The 71 list toggles no longer flood Protection: blocking renders in a
+  new top-level Ad blocking section, texture switches up front and one
+  collapsed disclosure per list category (all closed by default, each
+  showing its on-count). Protection keeps fingerprinting only. No pref,
+  default, engine or behavior change: presentation only.
+  
+  Gates: node --check, series applies from base, tree diff 0/0/0,
+  TODO OK, build+package exit 0, version string, smoke clean, both
+  sections render (adblock collapsed, shield without blocking).
+  
+  [core/164-panel-site-adblock.patch]
+  Aether: shields panel gains a per-site adblock toggle
+  
+  The "site is not working" button is out: in its place a site-scoped ad
+  blocking switch drives the blocking exemption pref for the current
+  base domain (blocking master gates it, reload is offered). No pref,
+  default or engine change: panel presentation only.
+  
+  Gates: node --check, element/l10n cross-checks, stub-harness behavior
+  (site on/off, no-domain and master-off states, toggle writes inverted
+  exemption), series applies from base, tree diff 0/0/0, TODO OK,
+  build+package exit 0, version string, smoke clean.
+  
+  [core/165-shield-blocked-count.patch]
+  Aether: shield shows this tab's blocked count
+  
+  Every blocked load funnels through one per-tab counter (a WeakMap keyed
+  by the owning browser element, reset on each new top-level document;
+  loads with no owning tab count nowhere) and pings the chrome
+  controller, which paints the compact number (999, 1.5K, 2.5M) as a
+  badge on the shield button and as a line in the shields panel. Hidden
+  at zero, off master, or off web pages. No pref, default or engine
+  change: counting and presentation only.
+  
+  Gates: node --check, live Marionette E2E (badge counts real blocks on
+  a test page), series applies from base, tree diff 0/0/0, TODO OK,
+  build+package exit 0, version string, smoke clean.
+  
+  [core/166-adblock-list-layout.patch]
+  Aether: adblock lists filed by purpose, category children indented
+  
+  The author-based uBlock Origin category is gone: its six lists sit with
+  their purpose peers (filters/unbreak/quick-fixes/experimental under Ads,
+  privacy under Privacy, badware under Malware), in the new settings menu
+  and in the stock preferences page alike. Category children render one
+  level in so a toggle row never reads as a top-level menu entry.
+  
+  Gates: gate166 static asserts, series applies from base, tree diff 0/0/0,
+  TODO OK, build+package exit 0, version string, smoke clean.
+  
+  [core/167-adblock-master-switch.patch]
+  Aether: Block ads and trackers is the complete adblock switch
+  
+  With the master off nothing runs: no request blocking or counting, no
+  cosmetic injection, no list downloads, no badge. The new settings menu
+  greys every other blocking row while it is off, mirroring the
+  fingerprint master.
+  
+  Gates: gate167 static asserts, series applies from base, tree diff 0/0/0,
+  TODO OK, build+package exit 0, version string, smoke clean.
+  
+  [core/168-adblock-master-and-custom-lists.patch]
+  Aether: masters hide their sections, custom lists, per-list update
+  
+  Turning a master off hides everything it owns (the independent
+  provider blocker stays: it answers to its own switch). The adblock
+  master copy no longer ties it to EasyList. Users gain a Custom lists
+  section (extra subscriptions by URL, with update) and every list row
+  carries its own Update button instead of all-or-nothing refreshes.
+  
+  Gates: gate168 static asserts, series applies from base, tree diff 0/0/0,
+  TODO OK, build+package exit 0, version string, smoke clean.
+  
+  [core/169-fingerprint-copy-and-strict-optins.patch]
+  Aether: fingerprint copy, WebGPU/UA into Strict, no Advanced
+  
+  Plain-language copy across the fingerprint layers, profiles and the two
+  stock opt-ins. WebGPU protection and Identify as Aether move into Strict
+  (the author-based opt-ins group and the stub Advanced section go away);
+  the WebGPU switch is protection-polarity now, through our own pref
+  mirrored onto the stock switch. Profiles ignore both newcomers.
+  
+  Gates: gate169 static asserts, series applies from base, tree diff 0/0/0,
+  TODO OK, build+package exit 0, version string, smoke clean.
+  diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
+index c4d1fffa41e9fc82e748873079d49889fa199443..6a30e0a15a9bd400f0ce8792f8c9d673e7df394f 100644
+--- a/browser/app/profile/firefox.js
++++ b/browser/app/profile/firefox.js
+@@ -3356,6 +3356,9 @@ pref("aether.fingerprinting.gamepads", false);
+ // proximity or light readings reach pages. Strict, off by default: motion
+ // features stop working.
+ pref("aether.fingerprinting.sensors", false);
++// Aether WebGPU protection: block the WebGPU API so pages cannot read
++// graphics adapter details. On by default; the stock switch stays off.
++pref("aether.fingerprinting.webgpuBlocked", true);
+ // Aether settings menu (about:aethersettings): selected color theme.
+ pref("aether.settings.theme", "light");
+ // Aether settings menu: selected accent (preset name or #rrggbb custom).
+diff --git a/browser/base/content/aethersettings/aethersettings.css b/browser/base/content/aethersettings/aethersettings.css
+index e68d8ee6bf0bfa64ce620866d5e6fcd2044462ca..653abf76505c952260d894ef7e4f0f5599e8bc2a 100644
+--- a/browser/base/content/aethersettings/aethersettings.css
++++ b/browser/base/content/aethersettings/aethersettings.css
+@@ -60,6 +60,11 @@ svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stro
+ .featured-button:hover{transform:translateY(-2px)}
+ .blocklist-btn{flex:none;border:0;background:var(--ac);color:var(--onac);padding:9px 16px;border-radius:10px;cursor:pointer;font-weight:700}
+ .blocklist-btn:disabled{opacity:.55;cursor:default}
++.list-upd{padding:6px 12px;font-size:12.5px}
++.urlrow input{flex:1;min-width:0;border:1px solid var(--ed);border-radius:8px;background:var(--sf2);color:var(--st);padding:9px 12px}
++.urlrow input:focus{border-color:var(--ac);outline:0}
++.xbtn{flex:none;border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:8px;border-radius:8px}
++.xbtn:hover{color:var(--st)}
+ .stub{padding:34px;border:1.5px dashed var(--ed);border-radius:14px;color:var(--muted);text-align:center}
+ .panel[hidden]{display:none}
+ .ahead{margin-bottom:6px}
+@@ -71,6 +76,10 @@ svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stro
+ .card{background:var(--sf2);border-radius:14px}
+ .row{display:flex;align-items:center;gap:20px;padding:14px 18px;min-height:56px}
+ .row+.row{border-top:1px solid var(--ed)}
++/* Author display beats the UA [hidden] rule: re-assert it for rows. */
++.row[hidden]{display:none}
++/* Category children sit one level in: the header stays flush, its lists indent. */
++.catbody{padding-inline-start:22px}
+ .row.stack{flex-direction:column;align-items:stretch;gap:14px;padding-bottom:20px}
+ .row .t{flex:1;min-width:0}
+ .row .t b{display:block;font-weight:600;color:var(--st)}
+diff --git a/browser/base/content/aethersettings/aethersettings.html b/browser/base/content/aethersettings/aethersettings.html
+index b679e50e9d1840260a0b3347f270c0ad216fbd37..da7d487e64aa7c5fac704bb60cd4ed618e186010 100644
+--- a/browser/base/content/aethersettings/aethersettings.html
++++ b/browser/base/content/aethersettings/aethersettings.html
+@@ -27,7 +27,6 @@
+ <symbol id="key" viewBox="0 0 24 24"><circle cx="8" cy="12" r="3.2"/><path d="M11.2 12H19M16.5 12v3"/><circle class="a" cx="8" cy="12" r="1.1"/></symbol>
+ <symbol id="perf" viewBox="0 0 24 24"><path d="M5 17a8 8 0 1 1 14 0"/><path d="M12 14l3.5-4"/><circle class="a" cx="12" cy="14" r="1.8"/></symbol>
+ <symbol id="upd" viewBox="0 0 24 24"><path d="M18.5 15.75A7.5 7.5 0 1 1 15.75 5.5"/><path class="a" d="M17.05 3.25L18.7 7.2 14.45 7.75z" style="stroke:var(--ac);stroke-width:1.4;stroke-linejoin:round"/><circle class="a" cx="18.5" cy="15.75" r="1.7"/></symbol>
+-<symbol id="adv" viewBox="0 0 24 24"><path d="M12 4.5v2M12 17.5v2M4.5 12h2M17.5 12h2M6.7 6.7l1.4 1.4M15.9 15.9l1.4 1.4M17.3 6.7l-1.4 1.4M8.1 15.9l-1.4 1.4"/><circle cx="12" cy="12" r="3.6"/><circle class="a" cx="12" cy="12" r="1.3"/></symbol>
+ <symbol id="find" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M15.5 15.5l4 4"/></symbol>
+ <symbol id="spark" viewBox="0 0 24 24"><path d="M12 4l1.8 4.7 4.7 1.8-4.7 1.8L12 17l-1.8-4.7-4.7-1.8 4.7-1.8z"/></symbol>
+ <symbol id="go" viewBox="0 0 24 24"><path d="M5 12h14M13.5 6.5L19 12l-5.5 5.5"/></symbol>
+@@ -57,13 +56,14 @@
+ <button class="nav-item" data-id="start"><svg class="i"><use href="#start"/></svg>Start</button></div>
+ <div class="nav-group"><div class="nav-label">Privacy</div>
+ <button class="nav-item" data-id="shield"><svg class="i"><use href="#shield"/></svg>Protection</button>
++<button class="nav-item" data-id="adblock"><svg class="i"><use href="#shield"/></svg>Ad blocking</button>
+ <button class="nav-item" data-id="perm"><svg class="i"><use href="#perm"/></svg>Permissions</button>
+ <button class="nav-item" data-id="cookie"><svg class="i"><use href="#cookie"/></svg>Cookies</button>
+ <button class="nav-item" data-id="key"><svg class="i"><use href="#key"/></svg>Passwords</button></div>
+ <div class="nav-group"><div class="nav-label">System</div>
+ <button class="nav-item" data-id="perf"><svg class="i"><use href="#perf"/></svg>Performance</button>
+ <button class="nav-item" data-id="upd"><svg class="i"><use href="#upd"/></svg>Updates</button>
+-<button class="nav-item" data-id="adv"><svg class="i"><use href="#adv"/></svg>Advanced</button></div>
++</div>
+ </div>
+ <p class="nores" id="nores">No results.</p>
+ </aside>
+@@ -125,6 +125,10 @@
+ <div class="ahead"><h2>Protection</h2><p>What sites can measure about this browser.</p></div>
+ <div id="aetherGroups"></div>
+ </section>
++<section class="panel" id="panel-adblock" hidden>
++<div class="ahead"><h2>Ad blocking</h2><p>Ads, trackers and annoyances, blocked before they load.</p></div>
++<div id="adblockGroups"></div>
++</section>
+ </main>
+ </div></div>
+ <script src="chrome://browser/content/aethersettings/aethersettings.js"></script>
+diff --git a/browser/base/content/aethersettings/aethersettings.js b/browser/base/content/aethersettings/aethersettings.js
+index 3e6f4a8a57c2c13ebcda6ee66643f65bbceadc8d..a34db954112e5ca4c18982b489359c972fde25e4 100644
+--- a/browser/base/content/aethersettings/aethersettings.js
++++ b/browser/base/content/aethersettings/aethersettings.js
+@@ -14,15 +14,15 @@ const INFO = {
+   spaces: ["Spaces", "Spaces", "Group tabs by context."],
+   start: ["Start", "Start", "What you see when Aether opens."],
+   shield: ["Protection", "Protection", "Privacy, tracking, cookies and permissions."],
++  adblock: ["Ad blocking", "Ad blocking", "Ads, trackers and annoyances, blocked before they load."],
+   perm: ["Permissions", "Permissions", "Camera, location and notifications per site."],
+   cookie: ["Cookies", "Cookies", "Which sites may store data."],
+   key: ["Passwords", "Passwords", "Saved credentials and autofill."],
+   perf: ["Performance", "Performance", "Memory, sleeping tabs and acceleration."],
+   upd: ["Updates", "Updates", "Aether versions and news."],
+-  adv: ["Advanced", "Advanced", "Options for experienced users."],
+ };
+ // Sections with real content; anything else shows the stub.
+-const SECTIONS = { look: "panel-appearance", shield: "panel-shield" };
++const SECTIONS = { look: "panel-appearance", shield: "panel-shield", adblock: "panel-adblock" };
+ // Swap generation: stale fade callbacks from a superseded switch bail out.
+ let swapGen = 0;
+ const THEME_NAMES = { light: "Light", dark: "Dark", purple: "Purple", black: "Black", aetherlight: "Aether Light", aetherdark: "Aether Dark" };
+@@ -72,7 +72,7 @@ const PROFILES = [
+   {
+     id: "standard",
+     title: "Standard",
+-    desc: "Safe, reliable layers that work smoothly with most websites.",
++    desc: "Balanced protection designed to work with most websites.",
+   },
+   {
+     id: "strict",
+@@ -82,12 +82,13 @@ const PROFILES = [
+   {
+     id: "custom",
+     title: "Custom",
+-    desc: "Choose exactly which layers to use.",
++    desc: "Choose which protections to apply.",
+   },
+ ];
+ 
+ // Groups consumed by the profile radios above; the generic loop below
+-// renders the rest (blocking, stock opt-ins) untouched.
++// renders the rest (stock opt-ins) untouched. Blocking lives in its own
++// section now (buildAdblockSection).
+ const PROFILE_GROUP_IDS = new Set(["protections", "strict"]);
+ 
+ function buildProtectionSection() {
+@@ -108,7 +109,7 @@ function buildProtectionSection() {
+   }
+   host.appendChild(buildProfilesCard());
+   for (const group of AETHER_GROUPS) {
+-    if (PROFILE_GROUP_IDS.has(group.id)) {
++    if (PROFILE_GROUP_IDS.has(group.id) || group.id === "blocking") {
+       continue;
+     }
+     const layers = group.settings.filter(s => !s.master);
+@@ -127,33 +128,78 @@ function buildProtectionSection() {
+     }
+     const card = document.createElement("div");
+     card.className = "card";
+-    if (group.id === "blocking") {
+-      buildBlockingCard(card, layers);
+-    } else {
+-      for (const s of layers) {
+-        card.appendChild(buildLayerRow(s));
+-      }
+-    }
+-    if (group.id === "blocking") {
+-      card.appendChild(buildBlocklistFooter());
++    for (const s of layers) {
++      card.appendChild(buildLayerRow(s));
+     }
+     sec.appendChild(card);
+     host.appendChild(sec);
+   }
+ }
+ 
+-// Ad blocking card: texture switches first, then one headed section per
+-// list category (uBO parity), each with its own subsections.
+-function buildSubhead(text) {
+-  const wrap = document.createElement("div");
+-  wrap.className = "row subhead";
++// Ad blocking lives in its own section now: texture switches up front,
++// then one collapsed disclosure per list category (all closed by default,
++// each showing its on-count). Protection no longer renders this group.
++const openCats = new Set();
++
++function catCount(cat, layers) {
++  let on = 0;
++  let total = 0;
++  for (const s of layers) {
++    if (s.cat !== cat) {
++      continue;
++    }
++    total++;
++    if (readPref(s.pref, s.default)) {
++      on++;
++    }
++  }
++  return { on, total };
++}
++
++function buildCatHead(cat, layers) {
++  const meta = CATEGORY_META[cat];
++  const row = document.createElement("div");
++  row.className = "row cathead";
+   const t = document.createElement("div");
+   t.className = "t";
+   const b = document.createElement("b");
+-  b.textContent = text;
++  b.textContent = meta.title;
++  const sm = document.createElement("small");
++  sm.className = "catchild";
++  sm.dataset.cat = cat;
++  sm.dataset.desc = meta.desc;
+   t.appendChild(b);
+-  wrap.appendChild(t);
+-  return wrap;
++  t.appendChild(sm);
++  row.appendChild(t);
++  const chev = document.createElement("button");
++  chev.className = "chev";
++  chev.type = "button";
++  chev.dataset.catch = cat;
++  chev.setAttribute("aria-expanded", String(openCats.has(cat)));
++  chev.setAttribute("aria-label", "Show " + meta.title + " lists");
++  chev.addEventListener("click", () => setCatOpen(cat, !openCats.has(cat)));
++  row.appendChild(chev);
++  return row;
++}
++
++function setCatOpen(cat, open) {
++  if (open) {
++    openCats.add(cat);
++  } else {
++    openCats.delete(cat);
++  }
++  const host = document.getElementById("adblockGroups");
++  if (!host) {
++    return;
++  }
++  const body = host.querySelector("#catBody-" + cat);
++  if (body) {
++    body.hidden = !open;
++  }
++  const chev = host.querySelector('.chev[data-catch="' + cat + '"]');
++  if (chev) {
++    chev.setAttribute("aria-expanded", String(open));
++  }
+ }
+ 
+ function buildBlockingCard(card, layers) {
+@@ -165,26 +211,316 @@ function buildBlockingCard(card, layers) {
+     if (!inCat.length) {
+       continue;
+     }
+-    const meta = CATEGORY_META[cat];
+-    const head = buildSubhead(meta.title);
+-    head.querySelector(".t").appendChild(
+-      Object.assign(document.createElement("small"), {
+-        textContent: meta.desc,
+-      })
+-    );
+-    card.appendChild(head);
++    card.appendChild(buildCatHead(cat, layers));
++    const body = document.createElement("div");
++    body.id = "catBody-" + cat;
++    body.className = "catbody";
++    body.hidden = !openCats.has(cat);
+     let lastSub = "\0";
+     for (const s of inCat) {
+       const sub = s.sub || "";
+       if (sub && sub !== lastSub) {
+         lastSub = sub;
+-        card.appendChild(buildSubhead(sub));
++        body.appendChild(buildSubhead(sub));
+       }
+-      card.appendChild(buildLayerRow(s));
++      const row = buildLayerRow(s);
++      const key = s.id.startsWith("list-") ? s.id.slice(5) : null;
++      if (key) {
++        row.appendChild(buildListUpdateButton(s.label, key));
++      }
++      body.appendChild(row);
+     }
++    card.appendChild(body);
+   }
+ }
+ 
++function refreshCategoryCounts() {
++  const group = AETHER_GROUPS.find(g => g.id === "blocking");
++  const list = group ? group.settings : [];
++  for (const sm of document.querySelectorAll("small.catchild")) {
++    const c = catCount(sm.dataset.cat, list);
++    sm.textContent =
++      sm.dataset.desc + (c.on ? " \u00b7 " + c.on + "/" + c.total + " on" : "");
++  }
++}
++
++function buildAdblockSection() {
++  const host = document.getElementById("adblockGroups");
++  if (!host) {
++    return;
++  }
++  const group = AETHER_GROUPS.find(g => g.id === "blocking");
++  if (!group) {
++    return;
++  }
++  const layers = group.settings.filter(s => !s.master);
++  if (!layers.length) {
++    return;
++  }
++  const sec = document.createElement("section");
++  sec.className = "sec";
++  const card = document.createElement("div");
++  card.className = "card";
++  buildBlockingCard(card, layers);
++  card.appendChild(buildBlocklistFooter());
++  sec.appendChild(card);
++  host.appendChild(sec);
++  host.appendChild(buildCustomSec());
++}
++
++// One-list refresh, for built-in and custom rows alike: only this list is
++// fetched, the rest of the engine state is untouched.
++async function updateOneList(btn, key) {
++  btn.disabled = true;
++  btn.textContent = "Updating…";
++  try {
++    const { AetherBlocker } = ChromeUtils.importESModule(
++      "resource://gre/modules/AetherBlocker.sys.mjs"
++    );
++    await AetherBlocker.updateListNow(key);
++    btn.textContent = "Updated";
++  } catch (e) {
++    btn.textContent = "Failed — retry";
++  }
++  btn.disabled = false;
++  refreshBlocklistFooter();
++  setTimeout(() => {
++    btn.textContent = "Update";
++  }, 4000);
++}
++
++function buildListUpdateButton(title, key) {
++  const btn = document.createElement("button");
++  btn.type = "button";
++  btn.className = "blocklist-btn list-upd";
++  btn.dataset.key = key;
++  btn.textContent = "Update";
++  btn.setAttribute("aria-label", "Update " + title);
++  btn.addEventListener("click", () => updateOneList(btn, key));
++  return btn;
++}
++
++// User subscriptions: extra filter lists by URL with per-list update.
++// Managed here only (the stock page keeps toggles); the engine merges them
++// with the catalog on every build.
++function customListsNow() {
++  try {
++    const { AetherBlocker } = ChromeUtils.importESModule(
++      "resource://gre/modules/AetherBlocker.sys.mjs"
++    );
++    return AetherBlocker.customLists();
++  } catch (e) {
++    return [];
++  }
++}
++
++function customHost(url) {
++  try {
++    return new URL(url).hostname;
++  } catch (e) {
++    return url;
++  }
++}
++
++function customVersion(key) {
++  try {
++    const { AetherBlocker } = ChromeUtils.importESModule(
++      "resource://gre/modules/AetherBlocker.sys.mjs"
++    );
++    const info = AetherBlocker.updateInfo();
++    const v = info.versions && info.versions[key];
++    if (v === "off") {
++      return "Off";
++    }
++    return v || "Not downloaded yet";
++  } catch (e) {
++    return "";
++  }
++}
++
++function buildCustomSec() {
++  const sec = document.createElement("section");
++  sec.className = "sec";
++  sec.id = "customListsSec";
++  const h = document.createElement("h3");
++  h.textContent = "Custom lists";
++  sec.appendChild(h);
++  const p = document.createElement("p");
++  p.textContent =
++    "Extra subscriptions by URL. They download and update like built-in lists.";
++  sec.appendChild(p);
++  const card = document.createElement("div");
++  card.className = "card";
++  card.id = "customListsCard";
++  sec.appendChild(card);
++  renderCustomLists(card);
++  return sec;
++}
++
++function renderCustomLists(card) {
++  card = card || document.getElementById("customListsCard");
++  if (!card) {
++    return;
++  }
++  card.textContent = "";
++  const blockOff = !readPref("aether.blocking.enabled", true);
++  const lists = customListsNow();
++  if (!lists.length) {
++    const stub = document.createElement("div");
++    stub.className = "stub";
++    stub.textContent = "No custom lists yet.";
++    card.appendChild(stub);
++  }
++  for (const e of lists) {
++    card.appendChild(buildCustomRow(e, blockOff));
++  }
++  card.appendChild(buildCustomAddRow(blockOff));
++}
++
++function buildCustomRow(e, blockOff) {
++  const row = document.createElement("div");
++  row.className = "row";
++  const t = document.createElement("div");
++  t.className = "t";
++  const b = document.createElement("b");
++  b.textContent = customHost(e.url);
++  const sm = document.createElement("small");
++  sm.textContent = e.url + " · " + customVersion(e.key);
++  t.appendChild(b);
++  t.appendChild(sm);
++  row.appendChild(t);
++  const upd = document.createElement("button");
++  upd.type = "button";
++  upd.className = "blocklist-btn list-upd";
++  upd.textContent = "Update";
++  upd.setAttribute("aria-label", "Update " + e.url);
++  upd.addEventListener("click", () => updateOneList(upd, e.key));
++  row.appendChild(upd);
++  const sw = document.createElement("button");
++  sw.className = "tg";
++  sw.type = "button";
++  sw.setAttribute("role", "switch");
++  sw.dataset.custom = "1";
++  sw.setAttribute("aria-label", "Custom list " + e.url);
++  sw.setAttribute("aria-checked", String(e.on));
++  sw.addEventListener("click", () => toggleCustomList(e.key));
++  row.appendChild(sw);
++  const x = document.createElement("button");
++  x.type = "button";
++  x.className = "xbtn";
++  x.textContent = "×";
++  x.setAttribute("aria-label", "Remove " + e.url);
++  x.addEventListener("click", () => removeCustomList(e.key));
++  row.appendChild(x);
++  row.classList.toggle("on", e.on);
++  sw.disabled = blockOff;
++  row.hidden = blockOff;
++  return row;
++}
++
++function buildCustomAddRow(blockOff) {
++  const row = document.createElement("div");
++  row.className = "row urlrow";
++  const input = document.createElement("input");
++  input.type = "text";
++  input.id = "customListUrl";
++  input.placeholder = "https://example.com/list.txt";
++  input.setAttribute("aria-label", "Custom list URL");
++  input.autocomplete = "off";
++  input.spellcheck = false;
++  row.appendChild(input);
++  const add = document.createElement("button");
++  add.type = "button";
++  add.className = "blocklist-btn";
++  add.textContent = "Add";
++  const commit = () => addCustomList(input, add);
++  add.addEventListener("click", commit);
++  input.addEventListener("keydown", ev => {
++    if (ev.key === "Enter") {
++      commit();
++    }
++  });
++  row.appendChild(add);
++  row.hidden = blockOff;
++  return row;
++}
++
++async function addCustomList(input, add) {
++  const url = (input.value || "").trim();
++  const { AetherBlocker } = ChromeUtils.importESModule(
++    "resource://gre/modules/AetherBlocker.sys.mjs"
++  );
++  const lists = AetherBlocker.customLists();
++  const fail = msg => {
++    add.textContent = msg;
++    setTimeout(() => {
++      add.textContent = "Add";
++    }, 2500);
++  };
++  if (!/^https?:\/\//i.test(url) || url.length > 2048) {
++    fail("Invalid URL");
++    return;
++  }
++  if (lists.some(e => e.url === url)) {
++    fail("Already added");
++    return;
++  }
++  if (lists.length >= 32) {
++    fail("List full");
++    return;
++  }
++  AetherBlocker.setCustomLists([
++    ...lists.map(e => ({ url: e.url, on: e.on })),
++    { url, on: true },
++  ]);
++  renderCustomLists();
++  // Fetch it right away so it protects at once; failure leaves it pending.
++  try {
++    const fresh = AetherBlocker.customLists().find(e => e.url === url);
++    if (fresh) {
++      await AetherBlocker.updateListNow(fresh.key);
++    }
++  } catch (e) {}
++  renderCustomLists();
++  refreshBlocklistFooter();
++}
++
++function toggleCustomList(key) {
++  try {
++    const { AetherBlocker } = ChromeUtils.importESModule(
++      "resource://gre/modules/AetherBlocker.sys.mjs"
++    );
++    AetherBlocker.setCustomLists(
++      AetherBlocker.customLists().map(e =>
++        e.key === key ? { url: e.url, on: !e.on } : { url: e.url, on: e.on }
++      )
++    );
++  } catch (e) {}
++  renderCustomLists();
++}
++
++async function removeCustomList(key) {
++  try {
++    const { AetherBlocker } = ChromeUtils.importESModule(
++      "resource://gre/modules/AetherBlocker.sys.mjs"
++    );
++    await AetherBlocker.removeCustomList(key);
++  } catch (e) {}
++  renderCustomLists();
++  refreshBlocklistFooter();
++}
++function buildSubhead(text) {
++  const wrap = document.createElement("div");
++  wrap.className = "row subhead";
++  const t = document.createElement("div");
++  t.className = "t";
++  const b = document.createElement("b");
++  b.textContent = text;
++  t.appendChild(b);
++  wrap.appendChild(t);
++  return wrap;
++}
++
+ // Filter-list status + manual refresh (manual updates are the default, so
+ // this button is the primary update surface; the auto toggle above only
+ // schedules the same function with setup consent).
+@@ -437,12 +773,12 @@ function buildLayerRow(s) {
+ // in the master card because they drive the whole section.
+ function stdLayers() {
+   const g = AETHER_GROUPS.find(g => g.id === "protections");
+-  return g ? g.settings.filter(s => !s.master) : [];
++  return g ? g.settings.filter(s => !s.master && !s.noprofile) : [];
+ }
+ 
+ function strictLayers() {
+   const g = AETHER_GROUPS.find(g => g.id === "strict");
+-  return g ? g.settings : [];
++  return g ? g.settings.filter(s => !s.noprofile) : [];
+ }
+ 
+ function currentProfile() {
+@@ -481,29 +817,68 @@ function updateProfileRadios() {
+   }
+ }
+ 
+-// One master switch, so the master row always wins and the gated rows grey
+-// out instead of disappearing: the user can still see what is disabled.
++// One master switch per section: everything its master owns hides while
++// the master is off (the independent provider blocker stays: it answers
++// to its own switch, not to the fingerprint master).
+ function syncProtectionSection() {
+   const master = readPref(AETHER_MASTER.pref, AETHER_MASTER.default);
+-  const host = document.getElementById("aetherGroups");
+-  if (!host) {
++  const blockMaster = readPref("aether.blocking.enabled", true);
++  const hosts = ["aetherGroups", "adblockGroups"]
++    .map(id => document.getElementById(id))
++    .filter(Boolean);
++  if (!hosts.length) {
+     return;
+   }
++  for (const host of hosts) {
+   for (const sw of host.querySelectorAll(".tg")) {
++    const row = sw.closest(".row");
+     const label = sw.getAttribute("aria-label");
+     const def = AETHER_GROUPS.flatMap(g => g.settings).find(
+       s => s.label === label
+     );
++    let hide = false;
+     if (!def) {
+-      continue;
++      // Custom list rows carry no registry entry; the adblock master owns them.
++      if (!sw.dataset.custom) {
++        continue;
++      }
++      hide = !blockMaster;
++    } else if (groupOf(def).id === "blocking") {
++      hide = def.pref !== "aether.blocking.enabled" && !blockMaster;
++    } else {
++      const gated = !!groupOf(def).gated && !def.master && !def.ungated;
++      hide = gated && !master;
++    }
++    sw.disabled = hide;
++    if (row) {
++      row.hidden = hide;
++    }
++    if (def && row) {
++      const on = readPref(def.pref, def.default);
++      row.classList.toggle("on", on);
++    }
++  }
++  }
++  const profCard = document.getElementById("profileCard");
++  if (profCard && profCard.closest("section")) {
++    profCard.closest("section").hidden = !master;
++  }
++  const ab = document.getElementById("adblockGroups");
++  if (ab) {
++    // NOTE: bodies keep their collapse state in the hidden attribute
++    // (setCatOpen owns it), so the master hides them via inline display
++    // instead of stomping it.
++    for (const el of ab.querySelectorAll(
++      ".cathead, .blocklist-foot, #customListsSec"
++    )) {
++      el.hidden = !blockMaster;
++    }
++    for (const el of ab.querySelectorAll(".catbody")) {
++      el.style.display = blockMaster ? "" : "none";
+     }
+-    const gated = !!groupOf(def).gated && !def.master && !def.ungated;
+-    const on = readPref(def.pref, def.default);
+-    sw.disabled = gated && !master;
+-    sw.closest(".row").classList.toggle("gated", sw.disabled);
+-    sw.closest(".row").classList.toggle("on", on);
+   }
+   refreshBlocklistFooter();
++  refreshCategoryCounts();
+   updateProfileRadios();
+ }
+ 
+@@ -1109,6 +1484,7 @@ applyAccent(getAccent(), false);
+ applyWebScheme(getWebScheme(), false);
+ applyDesign(getDesign(), false);
+ buildProtectionSection();
++buildAdblockSection();
+ syncProtectionSection();
+ // Deep-linkable sections (about:aethersettings#shield, optionally with
+ // /<profile> to open one disclosure: #shield/custom). Unknown or missing
+diff --git a/browser/base/content/browser-aetherProtections.js b/browser/base/content/browser-aetherProtections.js
+index bcd7a1533394c5122a8acf03c93471d6528e7565..fa2756fb09e8defe83c0f0ff5d0d7253a8cc6947 100644
+--- a/browser/base/content/browser-aetherProtections.js
++++ b/browser/base/content/browser-aetherProtections.js
+@@ -6,20 +6,27 @@
+  * gAetherProtections: controller for the Aether shields panel.
+  *
+  * Opened from the shield and trust buttons instead of the Firefox popups.
+- * Slim panel: master switch, per-site exemption and a link to the full
+- * fingerprint settings (layer toggles live in about:aethersettings and
++ * Slim panel: fingerprint master, per-site adblock toggle and a link to
++ * the full settings (layer toggles live in about:aethersettings and
+  * the stock popups). Changing anything marks the panel dirty and offers
+- * a page reload (engine state is per load). The broken-site button exempts
+- * this site only (exact base domain), then also offers the reload.
++ * a page reload (engine state is per load). The site toggle exempts this
++ * site from blocking only (exact base domain).
+  */
+ 
++const { AetherBlocker } = ChromeUtils.importESModule(
++  "resource://gre/modules/AetherBlocker.sys.mjs"
++);
++
++const AETHER_COUNT_TOPIC = "aether-blocking-count";
++
+ var gAetherProtections = {
+   // Slim panel: only the master pref lives here. Layer toggles live in
+   // about:aethersettings and the stock popups (their own controllers).
+   PREFS: {
+     enabled: "aether.fingerprinting.enabled",
++    blocking: "aether.blocking.enabled",
+   },
+-  KEYS: ["enabled"],
++  KEYS: ["enabled", "blocking"],
+ 
+   _inited: false,
+ 
+@@ -35,6 +42,7 @@ var gAetherProtections = {
+     if (this._inited) {
+       return;
+     }
++    this._ensureBadge();
+     this._observer = () => this.render();
+     for (const key of this.KEYS) {
+       Services.prefs.addObserver(this.PREFS[key], this._observer);
+@@ -42,21 +50,91 @@ var gAetherProtections = {
+     this.panel.addEventListener("toggle", event => this._onToggle(event));
+     this.panel.addEventListener("popupshowing", () => this.render());
+     this.panel.addEventListener("popuphidden", () => this.onPopupHidden());
+-    this.$("#aether-protections-site").addEventListener("click", () =>
+-      this._onBrokenSite()
+-    );
+     this.$("#aether-protections-settings").addEventListener("click", () =>
+       this._onSettingsLink()
+     );
++    this.$("#aether-protections-adblock-settings").addEventListener(
++      "click",
++      () => this._onAdblockSettingsLink()
++    );
+     this.$("#aether-protections-reload-button").addEventListener(
+       "click",
+       () => this._onReload()
+     );
+-    window.addEventListener("unload", () => this._uninit(), { once: true });
+     this._inited = true;
+   },
+ 
++  // Badge wiring, alive from window load: the panel may never open,
++  // but the shield badge must still track this tab's count.
++  _badgeInit: false,
++
++  _ensureCountObserver() {
++    if (this._countObserver) {
++      return;
++    }
++    const self = this;
++    this._countObserver = {
++      QueryInterface(iid) {
++        try {
++          if (iid.equals(Ci.nsISupports) || iid.equals(Ci.nsIObserver)) {
++            return this;
++          }
++        } catch (e) {}
++        throw new Error("NS_NOINTERFACE");
++      },
++      observe: () => {
++        try {
++          self._refreshBadge();
++        } catch (e) {}
++      },
++    };
++    try {
++      Services.obs.addObserver(this._countObserver, AETHER_COUNT_TOPIC);
++    } catch (e) {}
++  },
++
++  _ensureBadge() {
++    if (this._badgeInit) {
++      return;
++    }
++    this._badgeInit = true;
++    this._ensureCountObserver();
++    this._tabSelect = () => {
++      try {
++        this._refreshBadge();
++      } catch (e) {}
++    };
++    try {
++      gBrowser.tabContainer.addEventListener("TabSelect", this._tabSelect);
++    } catch (e) {}
++    window.addEventListener("unload", () => this._uninit(), { once: true });
++    try {
++      this._badgePoll = window.setInterval(() => {
++        try {
++          if (document.visibilityState !== "hidden") {
++            this._refreshBadge();
++          }
++        } catch (e) {}
++      }, 1500);
++    } catch (e) {}
++    try {
++      this._refreshBadge();
++    } catch (e) {}
++  },
++
+   _uninit() {
++    try {
++      if (this._badgePoll) {
++        window.clearInterval(this._badgePoll);
++        this._badgePoll = null;
++      }
++    } catch (e) {}
++    try {
++      Services.obs.removeObserver(this._countObserver, AETHER_COUNT_TOPIC);
++    } catch (e) {}
++    try {
++      gBrowser.tabContainer.removeEventListener("TabSelect", this._tabSelect);
++    } catch (e) {}
+     for (const key of this.KEYS) {
+       try {
+         Services.prefs.removeObserver(this.PREFS[key], this._observer);
+@@ -111,12 +189,12 @@ var gAetherProtections = {
+     }
+   },
+ 
+-  _isSiteExempt(domain) {
++  _isAdblockExempt(domain) {
+     if (!domain) {
+       return false;
+     }
+     return Services.prefs.getBoolPref(
+-      "aether.fingerprinting.exempt.all." + domain,
++      "aether.blocking.exempt.all." + domain,
+       false
+     );
+   },
+@@ -132,6 +210,19 @@ var gAetherProtections = {
+     if (!target || !target.dataset.key) {
+       return;
+     }
++    if (target.dataset.key === "siteAdblock") {
++      const domain = this._currentBaseDomain();
++      if (!domain) {
++        return;
++      }
++      Services.prefs.setBoolPref(
++        "aether.blocking.exempt.all." + domain,
++        !target.pressed
++      );
++      this.render();
++      this.$("#aether-protections-reload-row").hidden = false;
++      return;
++    }
+     Services.prefs.setBoolPref(
+       this.PREFS[target.dataset.key],
+       !!target.pressed
+@@ -140,16 +231,151 @@ var gAetherProtections = {
+     this.$("#aether-protections-reload-row").hidden = false;
+   },
+ 
+-  _onBrokenSite() {
+-    const domain = this._currentBaseDomain();
+-    if (!domain) {
++  _siteAdblockOn(domain) {
++    return !!domain && !this._isAdblockExempt(domain);
++  },
++
++  // Compact count: 999, 1.5K, 15K, 999K, 1M, 2.5M.
++  _formatCount(n) {
++    const trim1 = v => v.toFixed(1).replace(/\.0$/, "");
++    if (n < 1000) {
++      return String(n);
++    }
++    if (n < 1000000) {
++      const k = n / 1000;
++      if (k < 10) {
++        return trim1(k) + "K";
++      }
++      const r = Math.round(k);
++      return (r >= 1000 ? "1M" : String(r) + "K");
++    }
++    const m = n / 1000000;
++    return (m < 10 ? trim1(m) : String(Math.round(m))) + "M";
++  },
++
++  // The badge sits on whatever the current theme paints behind the urlbar,
++  // and a fixed box disappears into a dark chrome: one dark gray cannot read
++  // on both. So the box is derived from the real backdrop, walked up from
++  // the shield. Light chrome gets a near-black box with white text, dark
++  // chrome a light gray box with near-black text. This follows Light, Dark,
++  // Purple and the browser-color picker without any of them knowing that the
++  // badge exists, and _refreshBadge re-reads it on every tick, so a theme
++  // switch lands within the poll interval with no listener of its own.
++  _badgeBackdrop() {
++    let el = null;
++    try {
++      el = document.getElementById("aether-shield-wrap");
++    } catch (e) {}
++    while (el) {
++      let bg = "";
++      try {
++        const cs = getComputedStyle(el);
++        bg = cs ? cs.backgroundColor : "";
++      } catch (e) {
++        break;
++      }
++      if (bg && bg != "transparent") {
++        const n = bg.match(/[\d.]+/g);
++        if (n && n.length >= 3 && (n.length < 4 || parseFloat(n[3]) > 0.01)) {
++          return bg;
++        }
++      }
++      el = el.parentElement || el.parentNode;
++    }
++    return "";
++  },
++
++  _badgePalette() {
++    const bg = this._badgeBackdrop();
++    if (!bg) {
++      // No computed background anywhere up the chain: keep the old dark box
++      // rather than guess, and never let a failure leave the badge unstyled.
++      return "#3A3A42|#FFFFFF";
++    }
++    const n = bg.match(/[\d.]+/g) || [];
++    const lin = v => {
++      v /= 255;
++      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
++    };
++    const lum =
++      0.2126 * lin(parseFloat(n[0])) +
++      0.7152 * lin(parseFloat(n[1])) +
++      0.0722 * lin(parseFloat(n[2]));
++    return lum > 0.35 ? "#3A3A42|#FFFFFF" : "#EDEDF2|#1A1A1F";
++  },
++
++  // Shield badge: this tab's blocked count, in flow against the shield's
++  // top-right corner. One single unit with the shield at any count width:
++  // it takes its own room, so wider counts push the URL right instead of
++  // covering the shield or the URL text. Shown only on web pages with a
++  // nonzero count and the master on (a stale number would mislead).
++  _refreshBadge() {
++    // NOTE: the badge lives in the trust container, not the
++    // tracking-protection one: stock hides the latter (display:none)
++    // whenever the trust panel feature gate is on.
++    let container = null;
++    try {
++      container = document.getElementById("trust-icon-container");
++    } catch (e) {
+       return;
+     }
+-    const pref = "aether.fingerprinting.exempt.all." + domain;
+-    const exempt = Services.prefs.getBoolPref(pref, false);
+-    Services.prefs.setBoolPref(pref, !exempt);
+-    this.render();
+-    this.$("#aether-protections-reload-row").hidden = false;
++    if (!container) {
++      return;
++    }
++    let badge = null;
++    try {
++      badge = document.getElementById("aether-shield-badge");
++    } catch (e) {
++      badge = null;
++    }
++    if (!badge) {
++      try {
++        badge = document.createElementNS(
++          "http://www.w3.org/1999/xhtml",
++          "span"
++        );
++        badge.setAttribute("id", "aether-shield-badge");
++        badge.setAttribute("class", "aether-shield-badge");
++        const wrap =
++          document.getElementById("aether-shield-wrap") || container;
++        wrap.appendChild(badge);
++      } catch (e) {
++        return;
++      }
++    }
++    let n = 0;
++    let on = false;
++    let web = false;
++    let siteOn = false;
++    try {
++      on = Services.prefs.getBoolPref("aether.blocking.enabled", true);
++      const uri = gBrowser.currentURI;
++      web = !!uri && (uri.scheme === "http" || uri.scheme === "https");
++      n = AetherBlocker.blockedCountFor(gBrowser.selectedBrowser);
++      siteOn = !web || this._siteAdblockOn(this._currentBaseDomain());
++    } catch (e) {}
++    const show = on && web && siteOn && n > 0;
++    container.classList.toggle("aether-has-blocked", show);
++    try {
++      if (show) {
++        container.hidden = false;
++      }
++    } catch (e) {}
++    const pal = show ? this._badgePalette().split("|") : null;
++    try {
++      badge.style.cssText = show
++        ? "display:inline-block;box-sizing:border-box;" +
++          "margin-inline-start:-5px;margin-top:0;vertical-align:top;" +
++          "padding:0 2px;border-radius:3px;" +
++          "background:" + pal[0] + ";" +
++          "color:" + pal[1] + ";" +
++          "font-size:9px;font-weight:700;line-height:12px;" +
++          "text-align:center;pointer-events:none;"
++        : "display:none;";
++    } catch (e) {}
++    if (show) {
++      badge.textContent = this._formatCount(n);
++    }
+   },
+ 
+   _onReload() {
+@@ -162,12 +388,20 @@ var gAetherProtections = {
+     window.openTrustedLinkIn("about:aethersettings#shield", "tab");
+   },
+ 
++  _onAdblockSettingsLink() {
++    this.panel.hidePopup();
++    window.openTrustedLinkIn("about:aethersettings#adblock", "tab");
++  },
++
+   render() {
+     const master = this._getPref("enabled");
+     for (const toggle of this.panel.querySelectorAll(
+       "moz-toggle[data-key]"
+     )) {
+       const key = toggle.dataset.key;
++      if (key === "siteAdblock") {
++        continue;
++      }
+       const on = this._getPref(key);
+       toggle.pressed = on;
+       toggle.disabled = key !== "enabled" && !master;
+@@ -191,18 +425,55 @@ var gAetherProtections = {
+         { host }
+       );
+     } catch (e) {}
+-    const exempt = this._isSiteExempt(domain);
+-    this.$("#aether-protections-mainView").dataset.siteExempt =
+-      String(exempt);
+-    const id = exempt ? "fixed" : "broken";
+-    document.l10n.setAttributes(
+-      this.$("#aether-protections-site-title"),
+-      `aether-protections-site-${id}-title`
+-    );
+-    document.l10n.setAttributes(
+-      this.$("#aether-protections-site-desc"),
+-      `aether-protections-site-${id}-desc`
+-    );
+-    this.$("#aether-protections-site").disabled = domain === null;
++    const adToggle = this.$("#aether-protections-adblock");
++    adToggle.pressed = this._siteAdblockOn(domain);
++    adToggle.disabled = domain === null || !this._getPref("blocking");
++    let pageBlocked = "0";
++    try {
++      pageBlocked = this._formatCount(
++        AetherBlocker.blockedCountFor(gBrowser.selectedBrowser)
++      );
++    } catch (e) {}
++    try {
++      document.l10n.setAttributes(
++        this.$("#aether-protections-count"),
++        "aether-protections-count",
++        { count: pageBlocked }
++      );
++    } catch (e) {}
++    this._refreshBadge();
+   },
+ };
++
++// Badge must track from window load, even if the shields panel never opens.
++if (
++  typeof window !== "undefined" &&
++  window &&
++  window.addEventListener &&
++  typeof gAetherProtections !== "undefined"
++) {
++  // Observer first, synchronously: startup blocks must not slip through
++  // before the window finishes loading.
++  try {
++    gAetherProtections._ensureCountObserver();
++  } catch (e) {}
++  if (
++    typeof document !== "undefined" &&
++    document &&
++    document.readyState === "complete"
++  ) {
++    try {
++      gAetherProtections._ensureBadge();
++    } catch (e) {}
++  } else {
++    window.addEventListener(
++      "load",
++      () => {
++        try {
++          gAetherProtections._ensureBadge();
++        } catch (e) {}
++      },
++      { once: true }
++    );
++  }
++}
+diff --git a/browser/base/content/browser.js b/browser/base/content/browser.js
+index 6f1f08f82dfe4a7960f798deb2e7c115cdac5b6b..798bd08fecc7f651c508a6f231488e005a1397a7 100644
+--- a/browser/base/content/browser.js
++++ b/browser/base/content/browser.js
+@@ -218,11 +218,6 @@ XPCOMUtils.defineLazyScriptGetter(
+   "gProtectionsHandler",
+   "chrome://browser/content/browser-siteProtections.js"
+ );
+-XPCOMUtils.defineLazyScriptGetter(
+-  this,
+-  "gAetherProtections",
+-  "chrome://browser/content/browser-aetherProtections.js"
+-);
+ XPCOMUtils.defineLazyScriptGetter(
+   this,
+   "gTrustPanelHandler",
+diff --git a/browser/base/content/browser.xhtml b/browser/base/content/browser.xhtml
+index 80e67a7106eaa312cf000a0e7fd4dc49032c343e..7e2cc9a3d1d8b35e21b8a49431624346a3acb9ce 100644
+--- a/browser/base/content/browser.xhtml
++++ b/browser/base/content/browser.xhtml
+@@ -111,6 +111,7 @@
+ 
+   <script src="chrome://browser/content/global-scripts.js"></script>
+   <script src="chrome://browser/content/browser-main.js"></script>
++  <script src="chrome://browser/content/browser-aetherProtections.js"></script>
+ </head>
+ <html:body xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+ # All sets except for popupsets (commands, keys, and stringbundles)
+diff --git a/browser/base/content/navigator-toolbox.inc.xhtml b/browser/base/content/navigator-toolbox.inc.xhtml
+index a30382ec829152012e190201d46331937d92abe4..24f4c1dcad0aa1023134a699088359c21d0c5d31 100644
+--- a/browser/base/content/navigator-toolbox.inc.xhtml
++++ b/browser/base/content/navigator-toolbox.inc.xhtml
+@@ -201,6 +201,7 @@
+             data-l10n-attrs="aria-label"
+             urlbar-slot="site-info"
+           >
++            <html:span id="aether-shield-wrap" class="aether-shield-wrap" style="position:relative;display:inline-block;line-height:0;"><image id="aether-shield-icon" class="aether-shield-icon"/><html:span id="aether-shield-badge" class="aether-shield-badge"></html:span></html:span>
+             <image id="trust-icon"/>
+             <label id="trust-label" crop="center" flex="1" data-l10n-id="urlbar-trust-icon-notsecure-label" />
+             <span id="trust-icon-tracker-count-longform-wrapper">
+diff --git a/browser/components/controlcenter/content/aetherProtectionsPanel.inc.xhtml b/browser/components/controlcenter/content/aetherProtectionsPanel.inc.xhtml
+index ab9409016a221f497b8211974957125dbcef5aad..9123f4a801ce57628c3b55be9274be8f631705f0 100644
+--- a/browser/components/controlcenter/content/aetherProtectionsPanel.inc.xhtml
++++ b/browser/components/controlcenter/content/aetherProtectionsPanel.inc.xhtml
+@@ -3,8 +3,8 @@
+    - You can obtain one at http://mozilla.org/MPL/2.0/. -->
+ 
+ <!-- Aether shields panel: slim entry point. Opened from the shield and
+-     trust buttons instead of the Firefox popups. Master switch, per-site
+-     exemption and a link to the full fingerprint settings; the layer
++     trust buttons instead of the Firefox popups. Fingerprint master,
++     per-site adblock toggle and a link to the full settings; the layer
+      toggles live in about:aethersettings and the stock popups. -->
+ 
+ <panel id="aether-protections-popup"
+@@ -22,6 +22,7 @@
+       <html:div class="aether-head-t">
+         <html:span id="aether-protections-title" class="aether-title" data-l10n-id="aether-protections-title"></html:span>
+         <html:span id="aether-protections-host" class="aether-host"></html:span>
++        <html:span id="aether-protections-count" class="aether-d" data-l10n-id="aether-protections-count"></html:span>
+       </html:div>
+     </html:div>
+ 
+@@ -35,11 +36,19 @@
+ 
+     <html:div class="aether-sep"></html:div>
+ 
+-    <html:button id="aether-protections-site" class="aether-row aether-site">
++    <html:div class="aether-row aether-main" data-key="siteAdblock">
++      <html:div class="aether-txt">
++        <html:span class="aether-t" data-l10n-id="aether-protections-adblock-title"></html:span>
++        <html:span class="aether-d" data-l10n-id="aether-protections-adblock-desc"></html:span>
++      </html:div>
++      <html:moz-toggle id="aether-protections-adblock" class="aether-toggle" data-key="siteAdblock" data-l10n-id="aether-protections-adblock-toggle"></html:moz-toggle>
++    </html:div>
++
++    <html:button id="aether-protections-adblock-settings" class="aether-row aether-site">
+       <html:span class="aether-ic" data-icon="pause" aria-hidden="true"></html:span>
+       <html:div class="aether-txt">
+-        <html:span class="aether-t" id="aether-protections-site-title" data-l10n-id="aether-protections-site-broken-title"></html:span>
+-        <html:span class="aether-d" id="aether-protections-site-desc" data-l10n-id="aether-protections-site-broken-desc"></html:span>
++        <html:span class="aether-t" data-l10n-id="aether-protections-adblock-settings-title"></html:span>
++        <html:span class="aether-d" data-l10n-id="aether-protections-adblock-settings-desc"></html:span>
+       </html:div>
+     </html:button>
+ 
+diff --git a/browser/components/preferences/config/privacy.mjs b/browser/components/preferences/config/privacy.mjs
+index 88705c12663fe07c6d8b3f895b4771f1c204079e..0e6ede563d1005a5ff64870c3cab121e8d468d36 100644
+--- a/browser/components/preferences/config/privacy.mjs
++++ b/browser/components/preferences/config/privacy.mjs
+@@ -409,8 +409,9 @@ Preferences.addAll([
+   { id: "aether.fingerprinting.hardwareConcurrency", type: "bool" },
+   { id: "aether.fingerprinting.textMetrics", type: "bool" },
+   // Stock prefs exposed in the legacy fallback UI.
+-  { id: "dom.webgpu.enabled", type: "bool" },
+   { id: "general.useragent.showAppToken", type: "bool" },
++  // Our WebGPU protection pref (mirrored onto the stock switch).
++  { id: "aether.fingerprinting.webgpuBlocked", type: "bool" },
+   // Aether touch normalization kill.
+   { id: "aether.fingerprinting.touchPoints", type: "bool" },
+   // Aether font visibility kill.
+@@ -1438,22 +1439,6 @@ SettingGroupManager.registerGroups({
+           "search-l10n-ids": "aether-screen-depth-label",
+         },
+       },
+-      {
+-        id: "aetherAllowWebGPU",
+-        l10nId: "aether-webgpu-label",
+-        control: "moz-checkbox",
+-        controlAttrs: {
+-          "search-l10n-ids": "aether-webgpu-label",
+-        },
+-      },
+-      {
+-        id: "aetherUAToken",
+-        l10nId: "aether-ua-token-label",
+-        control: "moz-checkbox",
+-        controlAttrs: {
+-          "search-l10n-ids": "aether-ua-token-label",
+-        },
+-      },
+     ],
+   },
+   aetherStrict: {
+@@ -1508,6 +1493,23 @@ SettingGroupManager.registerGroups({
+           "search-l10n-ids": "aether-geometry-label",
+         },
+       },
++      {
++        id: "aetherAllowWebGPU",
++        l10nId: "aether-webgpu-label",
++        control: "moz-checkbox",
++        controlAttrs: {
++          "search-l10n-ids": "aether-webgpu-label",
++        },
++      },
++      {
++        id: "aetherUAToken",
++        l10nId: "aether-ua-token-label",
++        control: "moz-checkbox",
++        controlAttrs: {
++          "search-l10n-ids": "aether-ua-token-label",
++        },
++      },
++
+     ],
+   },
+   aetherBlocking: {
+@@ -1564,32 +1566,40 @@ SettingGroupManager.registerGroups({
+       },,
+     ],
+   },
+-  aetherListsUblock: {
++  aetherListsAds: {
+     headingLevel: 2,
+-    l10nId: "aether-lists-ublock-group",
++    l10nId: "aether-lists-ads-group",
+     items: [
+       {
+-        id: "aetherListUblockFilters",
+-        l10nId: "aether-list-ublock-filters-label",
++        id: "aetherEasyList",
++        l10nId: "aether-list-easylist-label",
+         control: "moz-checkbox",
+         controlAttrs: {
+-          "search-l10n-ids": "aether-list-ublock-filters-label",
++          "search-l10n-ids": "aether-list-easylist-label",
+         },
+       },
+       {
+-        id: "aetherListUblockBadware",
+-        l10nId: "aether-list-ublock-badware-label",
++        id: "aetherListAdguardGeneric",
++        l10nId: "aether-list-adguard-generic-label",
+         control: "moz-checkbox",
+         controlAttrs: {
+-          "search-l10n-ids": "aether-list-ublock-badware-label",
++          "search-l10n-ids": "aether-list-adguard-generic-label",
+         },
+       },
+       {
+-        id: "aetherListUblockPrivacy",
+-        l10nId: "aether-list-ublock-privacy-label",
++        id: "aetherListAdguardMobile",
++        l10nId: "aether-list-adguard-mobile-label",
+         control: "moz-checkbox",
+         controlAttrs: {
+-          "search-l10n-ids": "aether-list-ublock-privacy-label",
++          "search-l10n-ids": "aether-list-adguard-mobile-label",
++        },
++      },
++      {
++        id: "aetherListUblockFilters",
++        l10nId: "aether-list-ublock-filters-label",
++        control: "moz-checkbox",
++        controlAttrs: {
++          "search-l10n-ids": "aether-list-ublock-filters-label",
+         },
+       },
+       {
+@@ -1618,36 +1628,6 @@ SettingGroupManager.registerGroups({
+       },
+     ],
+   },
+-  aetherListsAds: {
+-    headingLevel: 2,
+-    l10nId: "aether-lists-ads-group",
+-    items: [
+-      {
+-        id: "aetherEasyList",
+-        l10nId: "aether-list-easylist-label",
+-        control: "moz-checkbox",
+-        controlAttrs: {
+-          "search-l10n-ids": "aether-list-easylist-label",
+-        },
+-      },
+-      {
+-        id: "aetherListAdguardGeneric",
+-        l10nId: "aether-list-adguard-generic-label",
+-        control: "moz-checkbox",
+-        controlAttrs: {
+-          "search-l10n-ids": "aether-list-adguard-generic-label",
+-        },
+-      },
+-      {
+-        id: "aetherListAdguardMobile",
+-        l10nId: "aether-list-adguard-mobile-label",
+-        control: "moz-checkbox",
+-        controlAttrs: {
+-          "search-l10n-ids": "aether-list-adguard-mobile-label",
+-        },
+-      },
+-    ],
+-  },
+   aetherListsPrivacy: {
+     headingLevel: 2,
+     l10nId: "aether-lists-privacy-group",
+@@ -1676,6 +1656,14 @@ SettingGroupManager.registerGroups({
+           "search-l10n-ids": "aether-list-block-lan-label",
+         },
+       },
++      {
++        id: "aetherListUblockPrivacy",
++        l10nId: "aether-list-ublock-privacy-label",
++        control: "moz-checkbox",
++        controlAttrs: {
++          "search-l10n-ids": "aether-list-ublock-privacy-label",
++        },
++      },
+     ],
+   },
+   aetherListsMalware: {
+@@ -1698,6 +1686,14 @@ SettingGroupManager.registerGroups({
+           "search-l10n-ids": "aether-list-curben-phishing-label",
+         },
+       },
++      {
++        id: "aetherListUblockBadware",
++        l10nId: "aether-list-ublock-badware-label",
++        control: "moz-checkbox",
++        controlAttrs: {
++          "search-l10n-ids": "aether-list-ublock-badware-label",
++        },
++      },
+     ],
+   },
+   aetherListsAnnoyances: {
+@@ -5060,11 +5056,12 @@ Preferences.addSetting({
+   id: "aetherSensors",
+   pref: "aether.fingerprinting.sensors",
+ });
+-// Stock prefs exposed directly (no engine change): WebGPU stays off and the
+-// UA stays stock unless the user opts in here.
++// Stock prefs exposed directly (no engine change): the UA stays stock
++// unless the user opts in here. WebGPU goes through our own pref, mirrored
++// onto the stock switch with inverted polarity.
+ Preferences.addSetting({
+   id: "aetherAllowWebGPU",
+-  pref: "dom.webgpu.enabled",
++  pref: "aether.fingerprinting.webgpuBlocked",
+ });
+ Preferences.addSetting({
+   id: "aetherUAToken",
+diff --git a/browser/components/preferences/preferences.js b/browser/components/preferences/preferences.js
+index c054fb85b2956ac73fcc83fa102c14555a20e64a..a9916671d0fe09ce76555fc3f11892b6ef30f197 100644
+--- a/browser/components/preferences/preferences.js
++++ b/browser/components/preferences/preferences.js
+@@ -420,7 +420,6 @@ const CONFIG_PANES = Object.freeze({
+       "aetherProtections",
+       "aetherStrict",
+       "aetherBlocking",
+-      "aetherListsUblock",
+       "aetherListsAds",
+       "aetherListsPrivacy",
+       "aetherListsMalware",
+diff --git a/browser/components/preferences/privacy.inc.xhtml b/browser/components/preferences/privacy.inc.xhtml
+index b90f03b24d3c14ebb7db69d053b4d85e7dba3a20..f3bef0fe6acfad825bd3833b6d3d58cf789ec7ff 100644
+--- a/browser/components/preferences/privacy.inc.xhtml
++++ b/browser/components/preferences/privacy.inc.xhtml
+@@ -133,7 +133,7 @@
+   <hbox class="custom-option">
+     <checkbox id="aetherWebGPUCheckbox"
+               class="content-blocking-checkbox" flex="1"
+-              preference="dom.webgpu.enabled"
++              preference="aether.fingerprinting.webgpuBlocked"
+               data-l10n-id="aether-webgpu-label"/>
+   </hbox>
+   <hbox class="custom-option">
+@@ -142,6 +142,7 @@
+               preference="general.useragent.showAppToken"
+               data-l10n-id="aether-ua-token-label"/>
+   </hbox>
++
+ </groupbox>
+ 
+ <groupbox id="aetherBlockingGroup" data-category="panePrivacy">
+@@ -187,28 +188,35 @@
+   </hbox>
+ </groupbox>
+ 
+-<groupbox id="aetherListsUblockGroup" data-category="panePrivacy">
+-  <label><html:h2 data-l10n-id="aether-lists-ublock-header"/></label>
++
++<groupbox id="aetherListsAdsGroup" data-category="panePrivacy">
++  <label><html:h2 data-l10n-id="aether-lists-ads-header"/></label>
+   <description flex="1">
+-    <html:span data-l10n-id="aether-lists-ublock-description"></html:span>
++    <html:span data-l10n-id="aether-lists-ads-description"></html:span>
+   </description>
+   <hbox class="custom-option">
+-    <checkbox id="aetherListUblockFiltersCheckbox"
++    <checkbox id="aetherListEasylistCheckbox"
+               class="content-blocking-checkbox" flex="1"
+-              preference="aether.blocking.lists.enabled.ublock-filters"
+-              data-l10n-id="aether-list-ublock-filters-label"/>
++              preference="aether.blocking.lists.enabledEasyList"
++              data-l10n-id="aether-list-easylist-label"/>
+   </hbox>
+   <hbox class="custom-option">
+-    <checkbox id="aetherListUblockBadwareCheckbox"
++    <checkbox id="aetherListAdguardGenericCheckbox"
+               class="content-blocking-checkbox" flex="1"
+-              preference="aether.blocking.lists.enabled.ublock-badware"
+-              data-l10n-id="aether-list-ublock-badware-label"/>
++              preference="aether.blocking.lists.enabled.adguard-generic"
++              data-l10n-id="aether-list-adguard-generic-label"/>
+   </hbox>
+   <hbox class="custom-option">
+-    <checkbox id="aetherListUblockPrivacyCheckbox"
++    <checkbox id="aetherListAdguardMobileCheckbox"
+               class="content-blocking-checkbox" flex="1"
+-              preference="aether.blocking.lists.enabled.ublock-privacy"
+-              data-l10n-id="aether-list-ublock-privacy-label"/>
++              preference="aether.blocking.lists.enabled.adguard-mobile"
++              data-l10n-id="aether-list-adguard-mobile-label"/>
++  </hbox>
++  <hbox class="custom-option">
++    <checkbox id="aetherListUblockFiltersCheckbox"
++              class="content-blocking-checkbox" flex="1"
++              preference="aether.blocking.lists.enabled.ublock-filters"
++              data-l10n-id="aether-list-ublock-filters-label"/>
+   </hbox>
+   <hbox class="custom-option">
+     <checkbox id="aetherListUblockUnbreakCheckbox"
+@@ -230,31 +238,6 @@
+   </hbox>
+ </groupbox>
+ 
+-<groupbox id="aetherListsAdsGroup" data-category="panePrivacy">
+-  <label><html:h2 data-l10n-id="aether-lists-ads-header"/></label>
+-  <description flex="1">
+-    <html:span data-l10n-id="aether-lists-ads-description"></html:span>
+-  </description>
+-  <hbox class="custom-option">
+-    <checkbox id="aetherListEasylistCheckbox"
+-              class="content-blocking-checkbox" flex="1"
+-              preference="aether.blocking.lists.enabledEasyList"
+-              data-l10n-id="aether-list-easylist-label"/>
+-  </hbox>
+-  <hbox class="custom-option">
+-    <checkbox id="aetherListAdguardGenericCheckbox"
+-              class="content-blocking-checkbox" flex="1"
+-              preference="aether.blocking.lists.enabled.adguard-generic"
+-              data-l10n-id="aether-list-adguard-generic-label"/>
+-  </hbox>
+-  <hbox class="custom-option">
+-    <checkbox id="aetherListAdguardMobileCheckbox"
+-              class="content-blocking-checkbox" flex="1"
+-              preference="aether.blocking.lists.enabled.adguard-mobile"
+-              data-l10n-id="aether-list-adguard-mobile-label"/>
+-  </hbox>
+-</groupbox>
+-
+ <groupbox id="aetherListsPrivacyGroup" data-category="panePrivacy">
+   <label><html:h2 data-l10n-id="aether-lists-privacy-header"/></label>
+   <description flex="1">
+@@ -278,6 +261,12 @@
+               preference="aether.blocking.lists.enabled.block-lan"
+               data-l10n-id="aether-list-block-lan-label"/>
+   </hbox>
++  <hbox class="custom-option">
++    <checkbox id="aetherListUblockPrivacyCheckbox"
++              class="content-blocking-checkbox" flex="1"
++              preference="aether.blocking.lists.enabled.ublock-privacy"
++              data-l10n-id="aether-list-ublock-privacy-label"/>
++  </hbox>
+ </groupbox>
+ 
+ <groupbox id="aetherListsMalwareGroup" data-category="panePrivacy">
+@@ -297,6 +286,12 @@
+               preference="aether.blocking.lists.enabled.curben-phishing"
+               data-l10n-id="aether-list-curben-phishing-label"/>
+   </hbox>
++  <hbox class="custom-option">
++    <checkbox id="aetherListUblockBadwareCheckbox"
++              class="content-blocking-checkbox" flex="1"
++              preference="aether.blocking.lists.enabled.ublock-badware"
++              data-l10n-id="aether-list-ublock-badware-label"/>
++  </hbox>
+ </groupbox>
+ 
+ <groupbox id="aetherListsAnnoyancesGroup" data-category="panePrivacy">
+diff --git a/browser/locales/en-US/browser/aetherProtections.ftl b/browser/locales/en-US/browser/aetherProtections.ftl
+index 854a08a2f141ae79e626d46d02064e002ce83d0e..03777625119775e4278fe1064d0b9e60e1e309a8 100644
+--- a/browser/locales/en-US/browser/aetherProtections.ftl
++++ b/browser/locales/en-US/browser/aetherProtections.ftl
+@@ -10,9 +10,15 @@ aether-protections-expand =
+ aether-protections-master-title = Fingerprint
+ aether-protections-master-desc = What sites can measure about this browser.
+ aether-protections-master-toggle =
++aether-protections-adblock-title = Ad blocking
++aether-protections-adblock-desc = Turn off ads and trackers on this site only.
++aether-protections-adblock-toggle =
++aether-protections-count = { $count } blocked on this page
+     .aria-label = Fingerprint protection
+ aether-protections-settings-title = Fingerprint settings
+ aether-protections-settings-desc = Choose Standard, Strict or Custom.
++aether-protections-adblock-settings-title = Adblock settings
++aether-protections-adblock-settings-desc = Ads, trackers and annoyances, blocked before they load.
+ aether-protections-canvas-title = Canvas images
+ aether-protections-canvas-desc = Altered pixels, same look.
+ aether-protections-canvas-toggle =
+@@ -57,10 +63,6 @@ aether-protections-sensors-title = Motion sensors
+ aether-protections-sensors-desc = No readings; motion features off.
+ aether-protections-sensors-toggle =
+     .aria-label = Motion sensors protection
+-aether-protections-site-broken-title = This site is not working
+-aether-protections-site-broken-desc = Turn protection off for this site only.
+-aether-protections-site-fixed-title = Protection is off here
+-aether-protections-site-fixed-desc = Turn protection back on for this site.
+ aether-protections-reload = Reload this page
+ aether-protections-reload-desc = Needed to apply the changes.
+ ## Stock protections popup section: our layers, same prefs as the shields
+diff --git a/browser/locales/en-US/browser/preferences/preferences.ftl b/browser/locales/en-US/browser/preferences/preferences.ftl
+index 9d6d92e4a57cda7efa8f1ed69c7cff9b41f0b7c7..2dfa4788a7ae65616e78f733eaf8fc0142c1468b 100644
+--- a/browser/locales/en-US/browser/preferences/preferences.ftl
++++ b/browser/locales/en-US/browser/preferences/preferences.ftl
+@@ -2008,7 +2008,7 @@ aether-known-fingerprinters-label =
+ aether-block-ads-label =
+   .label = Block ads and trackers
+   .accesskey = A
+-  .description = Blocks ads and trackers with the EasyList and EasyPrivacy snapshots before they load.
++  .description = Master switch for all ad blocking. Off stops everything below.
+ aether-block-auto-update-label =
+   .label = Update filter lists automatically
+   .accesskey = U
+@@ -2018,11 +2018,6 @@ aether-blocking-description = Master switch, page-texture switches and updates.
+ aether-blocking-group =
+   .label = Ad blocking
+   .description = Master switch, page-texture switches and updates.
+-aether-lists-ublock-header = uBlock Origin lists
+-aether-lists-ublock-description = Maintained by the uBlock Origin project. Unbreak fixes sites other lists break.
+-aether-lists-ublock-group =
+-  .label = uBlock Origin lists
+-  .description = Maintained by the uBlock Origin project. Unbreak fixes sites other lists break.
+ aether-lists-ads-header = Ads
+ aether-lists-ads-description = General advertising blocklists.
+ aether-lists-ads-group =
+@@ -2329,9 +2324,9 @@ aether-sensors-label =
+   .accesskey = N
+   .description = No accelerometer, gyroscope or orientation readings. Sites using device motion stop working.
+ aether-webgpu-label =
+-  .label = Allow WebGPU
++  .label = Block WebGPU
+   .accesskey = W
+-  .description = Lets pages use WebGPU, exposing graphics adapter details. Off by default.
++  .description = Prevents websites from using WebGPU, which reveals details about your graphics hardware.
+ aether-ua-token-label =
+   .label = Include the Aether token in the user agent
+   .accesskey = K
+diff --git a/browser/themes/shared/controlcenter/aether-shield-color.svg b/browser/themes/shared/controlcenter/aether-shield-color.svg
+new file mode 100644
+index 0000000000000000000000000000000000000000..0ca1ca262c0c33912628e74cc00340244425f822
+--- /dev/null
++++ b/browser/themes/shared/controlcenter/aether-shield-color.svg
+@@ -0,0 +1,10 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
++  <defs>
++    <linearGradient id="aether-shield-g" x1="0" y1="0" x2="0" y2="1">
++      <stop offset="0" stop-color="#9D7BFF"/>
++      <stop offset="1" stop-color="#5B2FD6"/>
++    </linearGradient>
++  </defs>
++  <path d="M8 1.2l5.2 1.9v3.9c0 3.1-2.2 5.4-5.2 6.6-3-1.2-5.2-3.5-5.2-6.6V3.1z" fill="url(#aether-shield-g)"/>
++  <path d="M6.4 7.6l1.1 1.1 2-2.4" fill="none" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
++</svg>
+diff --git a/browser/themes/shared/controlcenter/panel.css b/browser/themes/shared/controlcenter/panel.css
+index 3976c0f640c499c174f2fb7e470f6259590eee64..eb74b21a85de732376c8467ea160833d93e89f32 100644
+--- a/browser/themes/shared/controlcenter/panel.css
++++ b/browser/themes/shared/controlcenter/panel.css
+@@ -1276,8 +1276,9 @@
+ .aether-state { font-size: 10.5px; font-weight: 700; color: var(--aether-accent); }
+ .aether-state[data-on="false"] { color: var(--aether-muted); }
+ 
+-/* Toggle switch (html:moz-toggle). */
++/* Toggle switch (html:moz-toggle). Pointer hand: the whole switch is clickable. */
+ .aether-toggle {
++  cursor: pointer;
+   --toggle-width: 36px; --toggle-height: 20px;
+   --toggle-dot-height: 14px; --toggle-dot-width: 14px; --toggle-dot-margin: 3px;
+   --toggle-border-color: transparent; --toggle-border-radius: 20px;
+@@ -1329,3 +1330,16 @@
+   color: #FFFFFF; font-weight: 700; cursor: pointer; }
+ .aether-go:hover { filter: brightness(1.08); }
+ @media (prefers-reduced-motion: reduce) { .aether-chev { transition: none; } }
++/* Aether toolbar shield: our own brand mark, always rendered, with the
++   count badge beside it. The stock trust icon stays hidden so the two
++   never double up; connection security keeps showing in the identity
++   box padlock, which is untouched. */
++#trust-icon-container #trust-icon {
++  display: none;
++}
++#aether-shield-icon {
++  list-style-image: url("chrome://browser/skin/controlcenter/aether-shield-color.svg");
++  width: 20px;
++  height: 20px;
++  margin-inline-start: 2px;
++}
+diff --git a/browser/themes/shared/jar.inc.mn b/browser/themes/shared/jar.inc.mn
+index 70cc488e264479f4b7120677ab65a6cca3ef1168..ed2d0f27ffd4a136786f21697161b9c36cabf695 100644
+--- a/browser/themes/shared/jar.inc.mn
++++ b/browser/themes/shared/jar.inc.mn
+@@ -82,6 +82,7 @@
+   skin/classic/browser/controlcenter/tracking-protection.svg   (../shared/controlcenter/tracking-protection.svg)
+   skin/classic/browser/controlcenter/hero-message-background.svg   (../shared/controlcenter/hero-message-background.svg)
+   skin/classic/browser/controlcenter/aether-shield.svg              (../shared/controlcenter/aether-shield.svg)
++  skin/classic/browser/controlcenter/aether-shield-color.svg        (../shared/controlcenter/aether-shield-color.svg)
+   skin/classic/browser/controlcenter/aether-canvas.svg              (../shared/controlcenter/aether-canvas.svg)
+   skin/classic/browser/controlcenter/aether-text.svg              (../shared/controlcenter/aether-text.svg)
+   skin/classic/browser/controlcenter/aether-webgl.svg              (../shared/controlcenter/aether-webgl.svg)
+diff --git a/toolkit/modules/AetherBlockCatalog.sys.mjs b/toolkit/modules/AetherBlockCatalog.sys.mjs
+index 9d29d03707c00991c68fddf96ac4ae11d594bd1e..2e451273c30cdeac31ef2e907087b282d1b285ba 100644
+--- a/toolkit/modules/AetherBlockCatalog.sys.mjs
++++ b/toolkit/modules/AetherBlockCatalog.sys.mjs
+@@ -6,10 +6,9 @@
+ // Only EasyList/EasyPrivacy ship as vendored snapshots; everything else
+ // downloads on demand when enabled and stays off by default.
+ 
+-export const CATEGORY_ORDER = ["ublock", "ads", "privacy", "malware", "annoyances", "multipurpose", "regions"];
++export const CATEGORY_ORDER = ["ads", "privacy", "malware", "annoyances", "multipurpose", "regions"];
+ 
+ export const CATEGORY_META = {
+-  ublock: { title: "uBlock Origin lists", desc: "Maintained by the uBlock Origin project. Unbreak fixes sites other lists break." },
+   ads: { title: "Ads", desc: "General advertising blocklists." },
+   privacy: { title: "Privacy", desc: "Trackers and tracking tricks." },
+   malware: { title: "Malware", desc: "Malicious and phishing domains." },
+@@ -42,20 +41,20 @@ function entry(key, title, cat, sub, url, vendored, pref, dflt) {
+ }
+ 
+ export const LIST_CATALOG = [
+-  entry("ublock-filters", "uBlock filters – Ads", "ublock", "", "https://ublockorigin.github.io/uAssets/filters/filters.txt", false, "aether.blocking.lists.enabled.ublock-filters", false),
+-  entry("ublock-badware", "uBlock filters – Badware risks", "ublock", "", "https://ublockorigin.github.io/uAssets/filters/badware.txt", false, "aether.blocking.lists.enabled.ublock-badware", false),
+-  entry("ublock-privacy", "uBlock filters – Privacy", "ublock", "", "https://ublockorigin.github.io/uAssets/filters/privacy.txt", false, "aether.blocking.lists.enabled.ublock-privacy", false),
+-  entry("ublock-unbreak", "uBlock filters – Unbreak", "ublock", "", "https://ublockorigin.github.io/uAssets/filters/unbreak.txt", false, "aether.blocking.lists.enabled.ublock-unbreak", false),
+-  entry("ublock-quick-fixes", "uBlock filters – Quick fixes", "ublock", "", "https://ublockorigin.github.io/uAssets/filters/quick-fixes.txt", false, "aether.blocking.lists.enabled.ublock-quick-fixes", false),
+-  entry("ublock-experimental", "uBlock filters – Experimental", "ublock", "", "https://ublockorigin.github.io/uAssets/filters/experimental.txt", false, "aether.blocking.lists.enabled.ublock-experimental", false),
+   entry("easylist", "EasyList", "ads", "", "", true, "aether.blocking.lists.enabledEasyList", true),
+   entry("adguard-generic", "AdGuard – Ads", "ads", "", "https://filters.adtidy.org/extension/ublock/filters/2_without_easylist.txt", false, "aether.blocking.lists.enabled.adguard-generic", false),
+   entry("adguard-mobile", "AdGuard – Mobile Ads", "ads", "", "https://filters.adtidy.org/extension/ublock/filters/11.txt", false, "aether.blocking.lists.enabled.adguard-mobile", false),
++  entry("ublock-filters", "uBlock filters – Ads", "ads", "", "https://ublockorigin.github.io/uAssets/filters/filters.txt", false, "aether.blocking.lists.enabled.ublock-filters", false),
++  entry("ublock-unbreak", "uBlock filters – Unbreak", "ads", "", "https://ublockorigin.github.io/uAssets/filters/unbreak.txt", false, "aether.blocking.lists.enabled.ublock-unbreak", false),
++  entry("ublock-quick-fixes", "uBlock filters – Quick fixes", "ads", "", "https://ublockorigin.github.io/uAssets/filters/quick-fixes.txt", false, "aether.blocking.lists.enabled.ublock-quick-fixes", false),
++  entry("ublock-experimental", "uBlock filters – Experimental", "ads", "", "https://ublockorigin.github.io/uAssets/filters/experimental.txt", false, "aether.blocking.lists.enabled.ublock-experimental", false),
+   entry("easyprivacy", "EasyPrivacy", "privacy", "", "", true, "aether.blocking.lists.enabledEasyPrivacy", true),
+   entry("adguard-spyware-url", "AdGuard/uBO – URL Tracking Protection", "privacy", "", "https://ublockorigin.github.io/uAssets/filters/privacy-removeparam.txt", false, "aether.blocking.lists.enabled.adguard-spyware-url", false),
+   entry("block-lan", "Block Outsider Intrusion into LAN", "privacy", "", "https://ublockorigin.github.io/uAssets/filters/lan-block.txt", false, "aether.blocking.lists.enabled.block-lan", false),
++  entry("ublock-privacy", "uBlock filters – Privacy", "privacy", "", "https://ublockorigin.github.io/uAssets/filters/privacy.txt", false, "aether.blocking.lists.enabled.ublock-privacy", false),
+   entry("urlhaus-1", "Online Malicious URL Blocklist", "malware", "", "https://malware-filter.gitlab.io/urlhaus-filter/urlhaus-filter-ag-online.txt", false, "aether.blocking.lists.enabled.urlhaus-1", false),
+   entry("curben-phishing", "Phishing URL Blocklist", "malware", "", "https://malware-filter.gitlab.io/phishing-filter/phishing-filter.txt", false, "aether.blocking.lists.enabled.curben-phishing", false),
++  entry("ublock-badware", "uBlock filters – Badware risks", "malware", "", "https://ublockorigin.github.io/uAssets/filters/badware.txt", false, "aether.blocking.lists.enabled.ublock-badware", false),
+   entry("adguard-cookies", "AdGuard – Cookie Notices", "annoyances", "AdGuard/uBO – Cookie Notices", "https://filters.adtidy.org/extension/ublock/filters/18.txt", false, "aether.blocking.lists.enabled.adguard-cookies", false),
+   entry("ublock-cookies-adguard", "uBlock filters – Cookie Notices", "annoyances", "AdGuard/uBO – Cookie Notices", "https://ublockorigin.github.io/uAssets/filters/annoyances-cookies.txt", false, "aether.blocking.lists.enabled.ublock-cookies-adguard", false),
+   entry("fanboy-cookiemonster", "EasyList – Cookie Notices", "annoyances", "EasyList/uBO – Cookie Notices", "https://ublockorigin.github.io/uAssets/thirdparties/easylist-cookies.txt", false, "aether.blocking.lists.enabled.fanboy-cookiemonster", false),
+diff --git a/toolkit/modules/AetherBlocker.sys.mjs b/toolkit/modules/AetherBlocker.sys.mjs
+index 4c7ad004deb36dbc431154c72b48317d2de1d0d7..8ccecb8b326c7cb314816317525aa4db4d1bcfeb 100644
+--- a/toolkit/modules/AetherBlocker.sys.mjs
++++ b/toolkit/modules/AetherBlocker.sys.mjs
+@@ -51,6 +51,8 @@ const PREF_NOPREFETCH = "aether.blocking.noPrefetch";
+ const PREF_IGNORE_GENERIC = "aether.blocking.cosmetic.ignoreGeneric";
+ const PREF_BADGE = "aether.blocking.badgeCount";
+ const PREF_CUSTOM = "aether.blocking.customFilters";
++const PREF_CUSTOMLISTS = "aether.blocking.customLists";
++const PREF_WEBGPU_BLOCKED = "aether.fingerprinting.webgpuBlocked";
+ const PREF_LIST_EL = "aether.blocking.lists.enabledEasyList";
+ const PREF_LIST_EP = "aether.blocking.lists.enabledEasyPrivacy";
+ const PREF_LIST_PREFIX = "aether.blocking.lists.enabled.";
+@@ -68,6 +70,7 @@ const MIN_LIST_LINES = 5000;
+ const TOPIC_REQUEST = "http-on-modify-request";
+ const TOPIC_EXAMINE = "http-on-examine-response";
+ const TOPIC_PROFILE_END = "profile-before-change";
++const TOPIC_COUNT = "aether-blocking-count";
+ const TTL_HIT_MS = 3600 * 1000;
+ const TTL_MISS_MS = 60 * 1000;
+ 
+@@ -92,7 +95,7 @@ let loadedSource = "snapshot";
+ let loadedVersions = { easylist: EASYLIST_VERSION, easyprivacy: EASYPRIVACY_VERSION };
+ let updateFlight = null;
+ let loadedKeys = [];
+-const counts = { blocked: 0 };
++const countsByBrowser = new WeakMap();
+ const cnameCache = new Map(); // host -> {canon, time}
+ const suspended = new WeakSet();
+ let extraHosts = new Set();
+@@ -125,6 +128,21 @@ function ensureEngine() {
+       }
+     }
+     loadedSource = sawProfile ? "profile" : "snapshot";
++    for (const e of customLists()) {
++      const key = customKey(e.url);
++      if (!e.on) {
++        loadedVersions[key] = "off";
++        continue;
++      }
++      const text = profileTexts && profileTexts[key];
++      if (text) {
++        built.addList(text);
++        loadedKeys.push(key);
++        loadedVersions[key] = listVersion(text);
++      } else {
++        loadedVersions[key] = "pending";
++      }
++    }
+     const custom = getString(PREF_CUSTOM, "");
+     if (custom.trim()) {
+       built.addList(custom);
+@@ -139,8 +157,50 @@ function bustEngine() {
+   engine = null;
+ }
+ 
++// Top-level <browser> element owning a channel, or null (workers,
++// system fetches). Lets the badge count per tab instead of globally.
++function browserFor(channel) {
++  // In-tree idiom (cf. amContentHandler): the top context's embedder is
++  // the tab's <browser> element, even across OOP frames.
++  try {
++    const li = channel.loadInfo || null;
++    const ctx =
++      (li && (li.targetBrowsingContext || li.frameBrowsingContext)) || null;
++    const top = ctx ? ctx.top : null;
++    const el = top ? top.embedderElement : null;
++    return el || null;
++  } catch (e) {
++    return null;
++  }
++}
++
++// Every blocked load funnels here: the owning tab's counter, then a ping
++// so the shield badge stays live. Loads with no owning tab (workers,
++// system fetches) belong to no tab and are counted nowhere.
++function noteBlocked(channel) {
++  let el = null;
++  try {
++    el = browserFor(channel);
++  } catch (e) {}
++  if (!el) {
++    return;
++  }
++  const n = (countsByBrowser.get(el) || 0) + 1;
++  countsByBrowser.set(el, n);
++  // Null subject on purpose: the observer re-reads the selected tab and
++  // never touches the subject, so an element subject would buy nothing
++  // and risk the dispatch.
++  try {
++    Services.obs.notifyObservers(null, TOPIC_COUNT, String(n));
++  } catch (e) {}
++}
++
++
+ // One-way mirror: our proxy pref drives the stock networking prefs.
+ // Turning the proxy off restores stock defaults. Never reads back.
++function mirrorWebGPU() {
++  setBool("dom.webgpu.enabled", !getBool(PREF_WEBGPU_BLOCKED, true));
++}
+ function mirrorStockPrefs() {
+   const no = getBool(PREF_NOPREFETCH, true);
+   setBool("network.prefetch-next", !no);
+@@ -214,6 +274,16 @@ async function readProfileLists() {
+         }
+       } catch (ign) {}
+     }
++    for (const e of customLists()) {
++      try {
++        const text = await IOUtils.readUTF8(
++          PathUtils.join(dir, customKey(e.url) + ".txt")
++        );
++        if (text && validList(text)) {
++          out[customKey(e.url)] = text;
++        }
++      } catch (ign) {}
++    }
+   } catch (e) {}
+   return Object.keys(out).length ? out : null;
+ }
+@@ -310,6 +380,41 @@ function baseDomainOf(host) {
+   }
+ }
+ 
++// Custom user subscriptions: [{url, on}] as JSON. Keys derive from the URL,
++// so they survive edits, dedupe repeats and never collide with catalog keys.
++function customKey(url) {
++  let h = 0x811c9dc5;
++  for (let i = 0; i < url.length; i++) {
++    h ^= url.charCodeAt(i);
++    h = Math.imul(h, 0x01000193);
++  }
++  return "custom-" + (h >>> 0).toString(16).padStart(8, "0");
++}
++
++function customLists() {
++  try {
++    const arr = JSON.parse(
++      Services.prefs.getStringPref(PREF_CUSTOMLISTS, "[]")
++    );
++    if (!Array.isArray(arr)) {
++      return [];
++    }
++    return arr
++      .filter(e => e && typeof e.url === "string" && e.url)
++      .slice(0, 32)
++      .map(e => ({ url: e.url, on: e.on !== false }));
++  } catch (e) {
++    return [];
++  }
++}
++
++// Only remote http(s) subscriptions: never file:, data: or chrome:.
++function customUrlOk(url) {
++  return (
++    typeof url === "string" && /^https?:\/\//i.test(url) && url.length <= 2048
++  );
++}
++
+ function cachedCanon(host) {
+   if (overrides.has(host)) {
+     return overrides.get(host);
+@@ -422,6 +527,11 @@ export const AetherBlocker = {
+           jobs.push({ key: entry.key, url: entry.url });
+         }
+       }
++      for (const e of customLists()) {
++        if (e.on && customUrlOk(e.url)) {
++          jobs.push({ key: customKey(e.url), url: e.url });
++        }
++      }
+       const out = {};
+       const failed = [];
+       for (const job of jobs) {
+@@ -475,7 +585,11 @@ export const AetherBlocker = {
+ 
+   maybeAutoUpdate() {
+     try {
+-      if (!getBool(PREF_CONSENT, false) || !getBool(PREF_AUTO, false)) {
++      if (
++        !getBool(PREF_ENABLED, false) ||
++        !getBool(PREF_CONSENT, false) ||
++        !getBool(PREF_AUTO, false)
++      ) {
+         return;
+       }
+       const last = getInt(PREF_LAST, 0) * 1000;
+@@ -494,8 +608,102 @@ export const AetherBlocker = {
+     }
+   },
+ 
+-  get blockedCount() {
+-    return counts.blocked;
++  // Custom user subscriptions for the settings UI (keys derive from URLs).
++  customLists() {
++    return customLists().map(e => ({
++      key: customKey(e.url),
++      url: e.url,
++      on: e.on,
++    }));
++  },
++
++  setCustomLists(arr) {
++    const clean = (Array.isArray(arr) ? arr : [])
++      .filter(e => e && typeof e.url === "string" && customUrlOk(e.url))
++      .slice(0, 32)
++      .map(e => ({ url: e.url, on: e.on !== false }));
++    try {
++      Services.prefs.setStringPref(PREF_CUSTOMLISTS, JSON.stringify(clean));
++    } catch (e) {}
++    bustEngine();
++  },
++
++  // Drop a subscription and its stored copy, so a re-added URL refetches.
++  async removeCustomList(key) {
++    const lists = customLists().filter(e => customKey(e.url) !== key);
++    try {
++      Services.prefs.setStringPref(
++        PREF_CUSTOMLISTS,
++        JSON.stringify(lists.map(e => ({ url: e.url, on: e.on })))
++      );
++    } catch (e) {}
++    try {
++      await IOUtils.remove(PathUtils.join(listsDir(), key + ".txt"));
++    } catch (e) {}
++    profileTexts = { ...(profileTexts || {}) };
++    delete profileTexts[key];
++    bustEngine();
++  },
++
++  /**
++   * Refresh one list (built-in or custom) instead of everything: fetch,
++   * validate, store and rebuild. Base lists honour their URL prefs.
++   * Returns { ok: true, version } and throws otherwise.
++   */
++  async updateListNow(key) {
++    let url = null;
++    let file = null;
++    if (key.startsWith("custom-")) {
++      const found = customLists().find(e => customKey(e.url) === key);
++      if (!found) {
++        throw new Error("unknown custom list: " + key);
++      }
++      url = found.url;
++      file = key + ".txt";
++    } else if (key === "easylist") {
++      url = getString(PREF_URL_EL, URL_EL_DEFAULT);
++      file = "easylist.txt";
++    } else if (key === "easyprivacy") {
++      url = getString(PREF_URL_EP, URL_EP_DEFAULT);
++      file = "easyprivacy.txt";
++    } else {
++      const entry = CATALOG_BY_KEY.get(key);
++      if (!entry || !entry.url) {
++        throw new Error("not downloadable: " + key);
++      }
++      url = entry.url;
++      file = entry.file;
++    }
++    if (!customUrlOk(url)) {
++      throw new Error("refusing non-http list url: " + key);
++    }
++    const res = await fetch(url);
++    if (!res.ok) {
++      throw new Error("list fetch failed: " + key + " " + res.status);
++    }
++    const text = await res.text();
++    if (!validList(text)) {
++      throw new Error("list failed validation: " + key);
++    }
++    const dir = listsDir();
++    try {
++      await IOUtils.makeDirectory(dir);
++    } catch (e) {}
++    await IOUtils.writeUTF8(PathUtils.join(dir, file), text);
++    try {
++      Services.prefs.setIntPref(PREF_LAST, Math.floor(Date.now() / 1000));
++    } catch (e) {}
++    profileTexts = { ...(profileTexts || {}), [key]: text };
++    engine = null;
++    return { ok: true, version: listVersion(text) };
++  },
++
++  blockedCountFor(browser) {
++    try {
++      return countsByBrowser.get(browser) || 0;
++    } catch (e) {
++      return 0;
++    }
+   },
+ 
+   match(request) {
+@@ -536,13 +744,13 @@ export const AetherBlocker = {
+     }
+     const res = (name && REDIRECT_RESOURCES[name]) || null;
+     if (res && this._serveStub(channel, res)) {
+-      counts.blocked++;
++      noteBlocked(channel);
+       return;
+     }
+     try {
+       channel.cancel(Cr.NS_BINDING_ABORTED);
+     } catch (e) {}
+-    counts.blocked++;
++    noteBlocked(channel);
+   },
+ 
+   // Feed the surrogate as the response body: forward the start at once
+@@ -649,7 +857,7 @@ export const AetherBlocker = {
+       }
+       try {
+         channel.cancel(Cr.NS_BINDING_ABORTED);
+-        counts.blocked++;
++        noteBlocked(channel);
+       } catch (e) {}
+     } catch (e) {
+     }
+@@ -657,6 +865,7 @@ export const AetherBlocker = {
+   init() {
+     refreshTestHooks();
+     mirrorStockPrefs();
++    mirrorWebGPU();
+     Services.prefs.addObserver(PREF_ENABLED, this);
+     Services.prefs.addObserver(PREF_EXTRA, this);
+     Services.prefs.addObserver(PREF_OVERRIDES, this);
+@@ -664,6 +873,7 @@ export const AetherBlocker = {
+     Services.prefs.addObserver(PREF_LIST_EL, this);
+     Services.prefs.addObserver(PREF_LIST_EP, this);
+     Services.prefs.addObserver(PREF_NOPREFETCH, this);
++    Services.prefs.addObserver(PREF_WEBGPU_BLOCKED, this);
+     Services.prefs.addObserver(PREF_LIST_PREFIX, this);
+     Services.obs.addObserver(this, TOPIC_REQUEST);
+     Services.obs.addObserver(this, TOPIC_EXAMINE);
+@@ -727,6 +937,7 @@ export const AetherBlocker = {
+     }
+     if (
+       topic === PREF_CUSTOM ||
++      topic === PREF_CUSTOMLISTS ||
+       topic === PREF_LIST_EL ||
+       topic === PREF_LIST_EP
+     ) {
+@@ -754,6 +965,10 @@ export const AetherBlocker = {
+       mirrorStockPrefs();
+       return;
+     }
++    if (topic === PREF_WEBGPU_BLOCKED) {
++      mirrorWebGPU();
++      return;
++    }
+     if (topic === TOPIC_EXAMINE) {
+       this._onExamine(subject);
+       return;
+@@ -778,6 +993,21 @@ export const AetherBlocker = {
+     if ((scheme !== "http" && scheme !== "https") || !host) {
+       return;
+     }
++    // New top-level document: reset this tab's counter (a stale badge
++    // would otherwise survive navigation). Runs before classification:
++    // navigations are first-party to themselves and would bail below.
++    // 6 is TYPE_DOCUMENT, mirroring TYPE_MAP. The reset itself pings so
++    // the badge clears even when the page blocks nothing.
++    try {
++      const li = channel.loadInfo || null;
++      if (li && li.externalContentPolicyType === 6) {
++        const tab = browserFor(channel);
++        if (tab) {
++          countsByBrowser.set(tab, 0);
++          Services.obs.notifyObservers(null, TOPIC_COUNT, "0");
++        }
++      }
++    } catch (e) {}
+     // Request classification + third-party proof (fail open).
+     let req;
+     try {
+@@ -798,7 +1028,7 @@ export const AetherBlocker = {
+     } catch (e) {}
+     // Test hook: extra blocked hosts.
+     if (extraHosts.has(host)) {
+-      counts.blocked++;
++      noteBlocked(channel);
+       try {
+         channel.cancel(Cr.NS_BINDING_ABORTED);
+       } catch (e) {}
+@@ -807,7 +1037,7 @@ export const AetherBlocker = {
+     // Phase-A policy: remote fonts die here when asked (icon fonts may
+     // look wrong; off by default).
+     if (req.type === "font" && getBool(PREF_FONTS, false)) {
+-      counts.blocked++;
++      noteBlocked(channel);
+       try {
+         channel.cancel(Cr.NS_BINDING_ABORTED);
+       } catch (e) {}
+diff --git a/toolkit/modules/AetherSettingsDefs.sys.mjs b/toolkit/modules/AetherSettingsDefs.sys.mjs
+index 0192a8ff0aedf5275300f4743545504bfad2583b..8334130ab09b4ce42c29088f4cfabc7f4dac83ab 100644
+--- a/toolkit/modules/AetherSettingsDefs.sys.mjs
++++ b/toolkit/modules/AetherSettingsDefs.sys.mjs
+@@ -23,10 +23,9 @@ const PROTECTIONS = [
+     default: true,
+     master: true,
+     l10n: "aether-master-label",
+-    label: "Fingerprinting protections",
++    label: "Fingerprinting protection",
+     description:
+-      "Main switch for everything below. Turning it off restores normal " +
+-      "behavior everywhere; blocking stays separate.",
++      "Prevents websites from identifying your device through its technical characteristics. Turning this off disables all protections below. Tracker blocking is managed separately.",
+   },
+   // Fingerprint-provider blocking lives here (not in ad blocking): it is
+   // part of fingerprinting. Ungated: it survives the master going off,
+@@ -37,63 +36,60 @@ const PROTECTIONS = [
+     default: true,
+     ungated: true,
+     l10n: "aether-known-fingerprinters-label",
+-    label: "Block known fingerprinters",
++    label: "Known tracker blocking",
+     description:
+-      "Blocks scripts and embeds from known fingerprinting providers " +
+-      "before they load.",
++      "Prevents scripts and embedded content from known fingerprinting providers from loading.",
+   },
+   {
+     id: "canvas",
+     pref: "aether.fingerprinting.canvasNoise2d",
+     default: true,
+     l10n: "aether-canvas-label",
+-    label: "Canvas privacy",
++    label: "Canvas protection",
+     description:
+-      "Sites see slightly altered pixels, so they can't recognize your " +
+-      "device. Everything looks the same to you.",
++      "Slightly alters image rendering data so it can't be used to identify your device. Visual quality is not affected.",
+   },
+   {
+     id: "webgl",
+     pref: "aether.fingerprinting.webglNoise",
+     default: true,
+     l10n: "aether-webgl-label",
+-    label: "3D graphics privacy",
++    label: "Graphics card protection",
+     description:
+-      "Sites see a common graphics card instead of yours. 3D and videos " +
+-      "keep working.",
++      "Reports a common graphics card instead of your own. 3D content and video continue to work normally.",
+   },
+   {
+     id: "audio",
+     pref: "aether.fingerprinting.audioNoise",
+     default: true,
+     l10n: "aether-audio-label",
+-    label: "Audio privacy",
++    label: "Audio protection",
+     description:
+-      "Sites get slightly altered sound data. You hear no difference.",
++      "Slightly alters audio processing data that websites can use to identify your device. Playback is not affected.",
+   },
+   {
+     id: "samplerate",
+     pref: "aether.fingerprinting.audioSampleRate",
+     default: true,
+     l10n: "aether-samplerate-label",
+-    label: "Common sample rate",
+-    description: "Sites always see 44100 Hz instead of your device's rate.",
++    label: "Standard audio sample rate",
++    description: "Reports a common audio rate (44100 Hz) instead of your device's actual rate.",
+   },
+   {
+     id: "cores",
+     pref: "aether.fingerprinting.hardwareConcurrency",
+     default: true,
+     l10n: "aether-cores-label",
+-    label: "8 CPU cores",
+-    description: "Sites see 8 cores instead of your real processor.",
++    label: "Standard processor cores",
++    description: "Reports 8 processor cores instead of your device's actual number.",
+   },
+   {
+     id: "text",
+     pref: "aether.fingerprinting.textMetrics",
+     default: true,
+     l10n: "aether-text-label",
+-    label: "Text measuring privacy",
+-    description: "Tiny tweaks stop font sniffing. Text looks identical.",
++    label: "Text measurement protection",
++    description: "Makes small adjustments to text measurements to prevent font detection. Text appears normal.",
+   },
+   {
+     id: "fonts",
+@@ -101,7 +97,7 @@ const PROTECTIONS = [
+     default: true,
+     l10n: "aether-fonts-label",
+     label: "Standard system fonts",
+-    description: "Sites see the base set only, not your full collection.",
++    description: "Websites can only detect a basic set of fonts, not all fonts installed on your device.",
+   },
+   {
+     id: "languages",
+@@ -109,7 +105,7 @@ const PROTECTIONS = [
+     default: true,
+     l10n: "aether-languages-label",
+     label: "Single language",
+-    description: "Sites see one language instead of your whole list.",
++    description: "Reports one language instead of your full language list.",
+   },
+   {
+     id: "depth",
+@@ -117,7 +113,7 @@ const PROTECTIONS = [
+     default: true,
+     l10n: "aether-screen-depth-label",
+     label: "Standard color depth",
+-    description: "Sites always see 24-bit color.",
++    description: "Reports a standard 24-bit color depth.",
+   },
+ ];
+ 
+@@ -131,17 +127,17 @@ const STRICT = [
+     pref: "aether.fingerprinting.touchPoints",
+     default: false,
+     l10n: "aether-touch-points-label",
+-    label: "Hidden touch points",
+-    description: "Sites won't know you have a touchscreen.",
++    label: "Touchscreen protection",
++    description: "Websites cannot detect whether your device has a touchscreen.",
+   },
+   {
+     id: "timezone",
+     pref: "aether.fingerprinting.timezoneUTC",
+     default: false,
+     l10n: "aether-timezone-label",
+-    label: "UTC clock",
++    label: "Time zone protection",
+     description:
+-      "Sites see UTC instead of your local time. Hours may look wrong.",
++      "Websites see Coordinated Universal Time (UTC) instead of your local time. Times shown on some sites may be incorrect.",
+   },
+   {
+     id: "devices",
+@@ -150,35 +146,53 @@ const STRICT = [
+     l10n: "aether-devices-label",
+     label: "Generic camera and microphone",
+     description:
+-      "Sites see one generic device. Calls work; site device lists " +
+-      "won't match.",
++      "Websites see a single generic camera and microphone instead of your actual devices. Calls work normally, but device lists on websites may not match yours.",
+   },
+   {
+     id: "gamepads",
+     pref: "aether.fingerprinting.gamepads",
+     default: false,
+     l10n: "aether-gamepads-label",
+-    label: "Hidden game controllers",
+-    description: "Sites see no controllers. Controller games won't work.",
++    label: "Game controller protection",
++    description: "Websites cannot detect connected game controllers. Games that require a controller will not work.",
+   },
+   {
+     id: "sensors",
+     pref: "aether.fingerprinting.sensors",
+     default: false,
+     l10n: "aether-sensors-label",
+-    label: "No motion sensors",
++    label: "Motion sensor protection",
+     description:
+-      "Sites get no movement data. Motion features won't work.",
++      "Websites cannot access motion or orientation data. Features that rely on it will not work.",
+   },
+   {
+     id: "geometry",
+     pref: "aether.fingerprinting.geometry",
+     default: false,
+     l10n: "aether-geometry-label",
+-    label: "Letterboxed windows",
++    label: "Standard window sizes",
+     description:
+-      "Windows snap to common sizes with visible margins. Turn off if " +
+-      "a site looks broken.",
++      "Window sizes are rounded to common dimensions, which may add margins around the page. Turn this off if a site does not display correctly.",
++  },
++  {
++    id: "webgpu",
++    pref: "aether.fingerprinting.webgpuBlocked",
++    default: true,
++    noprofile: true,
++    l10n: "aether-webgpu-label",
++    label: "WebGPU protection",
++    description:
++      "Prevents websites from using WebGPU, which reveals details about your graphics hardware. Some advanced graphics features may not work.",
++  },
++  {
++    id: "uaToken",
++    pref: "general.useragent.showAppToken",
++    default: false,
++    noprofile: true,
++    l10n: "aether-ua-token-label",
++    label: "Identify as Aether",
++    description:
++      "Adds \"Aether\" to the browser information sent to websites. Some websites may not recognize the browser and could load an older version. When off, websites see standard Firefox.",
+   },
+ ];
+ 
+@@ -191,8 +205,7 @@ const BLOCKING = [
+     l10n: "aether-block-ads-label",
+     label: "Block ads and trackers",
+     description:
+-      "Blocks ads and trackers with the EasyList and EasyPrivacy " +
+-      "snapshots before they load.",
++      "Master switch for all ad blocking. Off stops everything below.",
+   },
+   {
+     id: "blockFonts",
+@@ -256,31 +269,6 @@ const BLOCKING = [
+ 
+ // Stock switches we expose rather than own: turning them on removes a
+ // protection, which is why they default off and sit in their own group.
+-const OPT_INS = [
+-  {
+-    id: "webgpu",
+-    pref: "dom.webgpu.enabled",
+-    default: false,
+-    stock: true,
+-    l10n: "aether-webgpu-label",
+-    label: "Allow WebGPU",
+-    description:
+-      "Lets pages use WebGPU, exposing graphics adapter details. Off by " +
+-      "default.",
+-  },
+-  {
+-    id: "uaToken",
+-    pref: "general.useragent.showAppToken",
+-    default: false,
+-    stock: true,
+-    l10n: "aether-ua-token-label",
+-    label: "Include the Aether token in the user agent",
+-    description:
+-      "Identifies the browser as Aether instead of stock Firefox. Off by " +
+-      "default.",
+-  },
+-];
+-
+ export const AETHER_GROUPS = Object.freeze([
+   Object.freeze({
+     id: "protections",
+@@ -305,11 +293,6 @@ export const AETHER_GROUPS = Object.freeze([
+     title: "Ad blocking",
+     settings: Object.freeze(BLOCKING),
+   }),
+-  Object.freeze({
+-    id: "optIns",
+-    title: "Stock features we leave off",
+-    settings: Object.freeze(OPT_INS),
+-  }),
+ ]);
+ 
+ export const AETHER_SETTINGS = Object.freeze(
