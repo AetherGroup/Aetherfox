@@ -132,9 +132,15 @@ def ensure_toolchains(src):
     log = ROOT / "logs" / "toolchains.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     # Separate objdir: this pass must not touch obj-aether nor the project
-    # mozconfig, it only has to resolve the toolchains.
-    cmd = ["cmd", "/c", "mach.cmd", "configure", "--enable-bootstrap=no-update",
-           "mk_add_options=MOZ_OBJDIR=@TOPSRCDIR@/obj-toolchains"]
+    # mozconfig, it only has to resolve the toolchains. A bare `mach configure`
+    # with MOZCONFIG popped uses the default platform objdir
+    # (obj-x86_64-pc-windows-msvc), which is a separate object directory from
+    # obj-aether by construction. NOTE: do not pass the objdir here as
+    # `mk_add_options=...`: mozbuild's option parser rejects lower-case
+    # env-style arguments ("must be all uppercase") and the step dies before
+    # fetching anything. Only surfaces on a virgin machine; boxes with
+    # ~/.mozbuild already populated exit before reaching this.
+    cmd = ["cmd", "/c", "mach.cmd", "configure", "--enable-bootstrap=no-update"]
     with log.open("w", encoding="utf-8", errors="replace") as fh:
         proc = subprocess.run(cmd, cwd=str(src), env=env, stdout=fh,
                               stderr=subprocess.STDOUT)
