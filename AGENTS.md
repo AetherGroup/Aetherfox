@@ -955,6 +955,42 @@ headers: there should be none.
     conclusion (including green gates) validates the wrong code. Either
     repackage after poking or delete the backup so a restore fails loudly.
     (A whole redirect-gate afternoon went to a stale backup.)
+52. **⚠️ The first full build can die at ~1h40 out of *commit*, and the error it
+    prints names the wrong thing.** `create_rc.py` asks git for a file's
+    last-modified date; creating that subprocess fails with `DuplicateHandle`
+    because the box is out of memory commit (measured: 0.5 GB physical and
+    0.8 GB commit free on a 31.5 GB + ~13 GB pagefile machine). Two things hide
+    the cause: the real error is truncated away, and `mozprocess`'s
+    `ProcessReaderStderr` thread dies next to it with
+    `UnicodeDecodeError: 'utf-8' codec can't decode byte 0xe1` — a git message
+    in the OS language (Spanish cp1252 `á`) decoded as UTF-8. The number that
+    matters is mach's parallelism heuristic (`resolve_num_jobs` in
+    `python/mozbuild/mozbuild/base.py`): with no explicit flags it picks
+    **min(cores, RAM_GiB)** — `-j22` on a 22-core/32 GB box — and one heavy
+    rustc crate can want 15+ GB on its own (observed: a single orphaned `rustc`
+    holding 15.6 GB after the crash). Cap it in the mozconfig
+    (`mk_add_options MOZ_MAKE_FLAGS="-j10"`), preferably from a machine-local
+    overlay mozconfig that sources `mozconfig.windows` so the repo file stays
+    portable. `MOZ_MAKE_FLAGS` in the *environment* is **not** honoured: the
+    value is read from the mozconfig only, and `run-build.cmd` hardcodes that
+    path, so a capped build means calling `start-shell.bat` with `MOZCONFIG=`
+    pointing at the overlay. After such a crash an orphaned `rustc` keeps its
+    15 GB (the driver is gone, the child is not): kill it by name before
+    relaunching or the next build starts already starved. The build resumes
+    incrementally; nothing is lost but the time.
+53. **⚠️ A killed bootstrap can leave a toolchain "installed" for the marker
+    check while its extraction was cut off.** Killing the process tree during
+    the toolchain fetch (or an OOM) aborts a parallel extraction thread
+    mid-write: `~/.mozbuild/clang` ended up with `bin/` and `include/` but no
+    `lib/`, so `clang -print-resource-dir` pointed at a `lib/clang/22` that did
+    not exist and the WASI configure test died with `'stddef.h' file not found`
+    (a *builtin* header — that is the tell that the compiler install is the
+    suspect, not the sysroot). `sync.py`'s `TOOLCHAIN_MARKERS` only ask whether
+    the toolchain directory exists, so it reports the stack as up to date. Do
+    not re-download: the archives under `~/.mozbuild/toolchains/*.tar.zst`
+    survive and can be validated with `zstandard` (the `build` venv has it),
+    so deleting the broken install directory and re-running `sync.py`
+    re-extracts from cache for free.
 ---
 
 ## 9. Current state and open decisions
