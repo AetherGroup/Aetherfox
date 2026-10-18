@@ -5,8 +5,9 @@ it does not work.
 
 For what Aether is and what it removes, see the [README](../README.md).
 
-> **Pre-release.** Builds run on Windows x64. Binaries are not code-signed, and
-> there is no public release or update server yet.
+> **Pre-release software.** Builds run on Windows x64. Binaries are not
+> code-signed. [Aether Browser 0.1](https://github.com/AetherGroup/Aetherfox/releases/tag/v0.1)
+> is out (offline setup + portable zip); there is still no public update server.
 
 - [Quick start](#quick-start)
 - [Requirements](#requirements)
@@ -29,7 +30,7 @@ setup and one to three hours of compilation.
 # See "Choose a short source path" below before deviating from this.
 New-Item -ItemType Directory -Force C:\o\browser
 cd C:\o\browser
-git clone https://github.com/AetherGroup/Aether-Browser .
+git clone https://github.com/AetherGroup/Aetherfox .
 
 # No bundled extensions since 150: blocking is integrated natively, so there
 # is nothing to download into third_party/.
@@ -391,8 +392,8 @@ scripts/                 sync, build, package, updater tooling
 Firefox is public, so anyone can reproduce the exact browser:
 
 ```powershell
-git clone https://github.com/AetherGroup/Aether-Browser
-cd browser
+git clone https://github.com/AetherGroup/Aetherfox
+cd Aetherfox
 python scripts/sync.py --apply
 python scripts/build.py
 ```

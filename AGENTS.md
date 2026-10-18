@@ -418,9 +418,10 @@ headers: there should be none.
 
 ## 7. Publishing
 
-- **Remote configured, nothing pushed yet.** `origin` =
-  `https://github.com/AetherGroup/Aether-Browser.git` (public, still empty). No
-  push until the tree and the stack have been reviewed.
+- **Remote live:** `origin` =
+  `https://github.com/AetherGroup/Aetherfox.git` (public). `main` carries the
+  tree and the stack; **v0.1 is released** (`AetherSetup-156.0.1.exe` +
+  portable zip, built locally without CI — GitHub Actions stays disabled).
 - `.git` weighs ~12 MB: comfortably within GitHub's 100 MB per-file limit.
 - **GitHub's limit is the reason `mobile/` is not in the stack** (see §8.3).
   GitHub warns at 50 MiB and **blocks at 100 MiB per file**: a patch cannot go
@@ -1229,8 +1230,9 @@ headers: there should be none.
   from it: an older client BuildID gets OFFER, a current one gets empty `<updates></updates>`.
   Verified against the short `app.update.url` form (`/update/%VERSION%/%BUILD_ID%/update.xml`, owned
   by patch 01). Regenerate the MAR whenever the buildID changes.
-- **Remote configured, nothing pushed**: `origin` =
-  `https://github.com/AetherGroup/Aether-Browser.git` (public, still empty).
+- **Remote live:** `origin` =
+  `https://github.com/AetherGroup/Aetherfox.git`; **v0.1 released** (offline
+  setup + portable zip, built locally, no CI).
 - *Local changelog:* retired in favour of the website (its repo is
   `AetherGroup/aether`, served with Pages). Its generator script too.
 - **Future redesign with theme choice (planned, not now):** the browser UI

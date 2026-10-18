@@ -17,8 +17,9 @@
 > setup order, how the patch stack works and the five verification gates you
 > must pass before committing.
 
-> **Pre-release.** There is no public release yet, so there is no download and
-> no update server. See [Current status](#current-status).
+> **Download:** [Aether Browser 0.1](https://github.com/AetherGroup/Aetherfox/releases/tag/v0.1)
+> (Windows x64, unsigned). Updates still run in localhost mode; there is no
+> public update server yet. See [Current status](#current-status).
 
 ## Model
 
@@ -95,7 +96,9 @@ by default and waits behind an explicit switch.
 
 ## Current status
 
-- Pre-release: binaries are **not code-signed** (SmartScreen will warn).
+- **Released:** [Aether Browser 0.1](https://github.com/AetherGroup/Aetherfox/releases/tag/v0.1)
+  — offline setup (`AetherSetup-156.0.1.exe`) and portable zip. Binaries are
+  **not code-signed** (SmartScreen will warn).
 - **Updates run in localhost mode for now**: the updater talks to a local
   `scripts/aus-local.py` serving a locally built MAR. It moves to the real
   update service once that launches; until then there is no public update
@@ -117,8 +120,8 @@ Requires Windows, MozillaBuild and Visual Studio 2022 Build Tools. Full
 instructions, including troubleshooting, in [docs/BUILD.md](docs/BUILD.md).
 
 ```powershell
-git clone https://github.com/AetherGroup/Aether-Browser
-cd Aether-Browser
+git clone https://github.com/AetherGroup/Aetherfox
+cd Aetherfox
 
 python scripts\sync.py --src C:\o\fs --apply --no-download
 $env:MOZCONFIG = "C:\o\browser\mozconfig.windows"
