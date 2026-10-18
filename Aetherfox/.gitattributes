@@ -1,9 +1,0 @@
-# Aether: the whole repo in LF. The patches must apply byte-exact;
-# CRLF would break `git apply --check` and the series verification.
-* text=auto eol=lf
-*.png binary
-*.ico binary
-*.xpi binary
-*.bmp binary
-# 7zSD.sfx parses sfx-config.txt and requires CRLF; no conversion.
-branding/sfx-config.txt -text
