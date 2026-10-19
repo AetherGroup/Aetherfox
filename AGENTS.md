@@ -151,7 +151,7 @@ git clone --branch FIREFOX_156_0_1_RELEASE --depth 1 `
 #    --skip-toolchains if the machine is already set up or there is no network.
 python scripts\sync.py --src C:\fs --apply --no-download
 #    Expected: "toolchains: already installed in ..." or the download
-#              "19 applied, 0 already there, 0 in conflict"
+#              "20 applied, 0 already there, 0 in conflict"
 #              "branding assets: 55 gaps filled from unofficial, 35 Aetherfox files"
 #              "distribution: carried by the series (no staged binaries)"
 
@@ -346,7 +346,7 @@ tree comparison.
 
 | # | What it checks | How |
 |---|---|---|
-| 1 | The series applies on the base | `python scripts/sync.py --apply` → "19 applied, 0 in conflict" |
+| 1 | The series applies on the base | `python scripts/sync.py --apply` → "20 applied, 0 in conflict" |
 | 2 | **The stack rebuilds the whole tree** | clean clone test (below) |
 | 3 | Build privacy defaults | `python scripts/verify-flags.py --objdir ...` → "TODO OK" |
 | 4 | It compiles and packages | `python scripts/build.py` → rc 0 |
@@ -1030,6 +1030,22 @@ headers: there should be none.
     rename `nmhproxy.exe` still carried yesterday's `CompanyName` and BuildID.
     Touch the crate source (`browser/app/nmhproxy/src/main.rs`) to force a real
     relink, then verify `.VersionInfo`; `mach package` copies the result.
+56. **"Manual updates only" has to be enforced in code, in every path.** The
+    flag `UpdateService.manualUpdateOnly` (patch 09) is hard-coded `true`, but
+    it only guards the *background* task and the AppUpdater UI path. Two more
+    paths were still automatic: `UpdateService.#asyncInit` ->
+    `_attemptResume()` started a check on every startup, and
+    `_selectAndInstallUpdate()` only looked at `app.update.auto`, so flipping
+    that one value downloaded and installed a MAR with nobody asking. On
+    Windows `app.update.auto` is **per installation**, not per profile: it
+    lives in `C:\ProgramData\Mozilla-<guid>\updates\<install hash>\update-config.json`
+    (the profile pref is only a migration source), which is why editing
+    `prefs.js` changes nothing. Patch 20 closes all of it: no startup check,
+    the prompt instead of a download, `getAppUpdateAutoEnabled()` always
+    `false`, and no `policyFn` on the per-installation update prefs (the
+    `app-auto-updates-*` policies are upstream's; the product does not use
+    policies for this). The rule for the product: **the user starts the
+    search, the user starts the download, the user restarts.**
 ---
 
 ## 9. Current state and open decisions
@@ -1065,8 +1081,25 @@ headers: there should be none.
   (kept as Aether for the profile dir). Patch 01 now prints
   `MOZ_APP_DISPLAYNAME` in `DumpVersion` and `DumpFullVersion`
   (`toolkit/xre/nsAppRunner.cpp`), so gate 5 reads `Aether Aetherfox 156.0.1`.
-  Gates: 1 `19 applied, 0 in conflict`; 2 whole-tree green (18,569 files in both, 0 exclusive, 0 differing; 1,736 byte-compared);
+  Gates: 1 `20 applied, 0 in conflict`; 2 whole-tree green (18,569 files in both, 0 exclusive, 0 differing; 1,736 byte-compared);
   3 `TODO OK`; 4 build + package exit 0; 5 `Aether Aetherfox 156.0.1`.
+- **Patch 20: manual-only updates, in code (per user).** The user was
+  explicit: no automatic updates ever, and the rule must live in the code,
+  not in a policy or a setting. `manualUpdateOnly` (patch 09) was not
+  enough: `UpdateService.#asyncInit` -> `_attemptResume()` still checked on
+  every startup, and `_selectAndInstallUpdate()` only looked at
+  `app.update.auto`, so writing `true` in the per-installation
+  `update-config.json` got a MAR downloaded and installed unattended. Patch
+  20 removes the startup check, forces the "offer it to the user" branch,
+  makes `UpdateUtils.getAppUpdateAutoEnabled()` always `false` and drops the
+  `policyFn` hooks (the `app-auto-updates-*` policies are upstream's; the
+  product does not use policies for updates). Trap: #56.
+  End-to-end proof with the local AUS: starting the browser produces **no**
+  request to `127.0.0.1:8000`; the request only appears when the user
+  presses "Check for updates" (marionette drives the About dialog for the
+  test). `app.update.auto` is per installation on Windows
+  (`C:\ProgramData\Mozilla-<guid>\updates\<hash>\update-config.json`), the
+  profile pref is only a migration source.
 - **Patch 03 cleanup (same session).** The telemetry removal had left
   `auto start = TimeStamp::Now();` unused and an empty
   `if (!rv.Failed()) { }` in `devtools/shared/heapsnapshot/HeapSnapshot.cpp`.

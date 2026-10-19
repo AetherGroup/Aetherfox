@@ -1,0 +1,121 @@
+Aether: manual-only updates, enforced in code
+
+Updates are user-driven: the browser never looks for them on its own and
+never downloads or installs anything by itself. The user asks for the
+check (Help > About, or Preferences > "Check for updates"), the update is
+offered, and only the user starts the download and the install.
+
+This is enforced in code, not in configuration:
+
+  - UpdateUtils.getAppUpdateAutoEnabled() always returns false, so the
+    per-installation update-config.json, the app.update.auto pref and the
+    app-auto-updates-* enterprise policies cannot turn automatic updates
+    on. setAppUpdateAutoEnabled() keeps the setting off.
+  - The policyFn hooks are gone from the per-installation update prefs:
+    no policy takes part in the update configuration any more.
+  - UpdateService no longer kicks off a check when it resumes
+    (UpdateService:#asyncInit -> _attemptResume), so starting the browser
+    does not talk to the update server.
+  - UpdateService._selectAndInstallUpdate() offers the update to the user
+    instead of downloading it, even if something claims that automatic
+    updates are enabled.
+
+The rest of the manual-only behaviour was already there:
+UpdateService.manualUpdateOnly is unconditionally true (core/09), the
+per-installation defaults are false (core/03) and the preferences UI hides
+the automatic-install options (core/09).
+diff --git a/toolkit/modules/UpdateUtils.sys.mjs b/toolkit/modules/UpdateUtils.sys.mjs
+index 6962e78a877096590c92740c19eae0a2d3a5bfae..f23f6f1688d0b02de2d4e06249e6323149e473c6 100644
+--- a/toolkit/modules/UpdateUtils.sys.mjs
++++ b/toolkit/modules/UpdateUtils.sys.mjs
+@@ -173,7 +173,11 @@ export var UpdateUtils = {
+    * @return A Promise that resolves with a boolean.
+    */
+   async getAppUpdateAutoEnabled() {
+-    return this.readUpdateConfigSetting("app.update.auto");
++    // Aether: automatic updates are disabled in code. There is no pref, no
++    // per-installation config file and no enterprise policy that can turn
++    // them on: the user always decides when to look for an update and when
++    // to download and install it.
++    return false;
+   },
+ 
+   /**
+@@ -202,7 +206,9 @@ export var UpdateUtils = {
+    *         this operation simply sets a pref.
+    */
+   async setAppUpdateAutoEnabled(enabledValue) {
+-    return this.writeUpdateConfigSetting("app.update.auto", !!enabledValue);
++    // Aether: the setting cannot be turned on, only off. The call is kept
++    // for API compatibility with the preferences UI.
++    return this.writeUpdateConfigSetting("app.update.auto", false);
+   },
+ 
+   /**
+@@ -575,33 +581,11 @@ UpdateUtils.PER_INSTALLATION_PREFS = {
+     defaultValue: false, // Aether: manual updates only
+     migrate: true,
+     observerTopic: "auto-update-config-change",
+-    policyFn: () => {
+-      if (!Services.policies.isAllowed("app-auto-updates-off")) {
+-        // We aren't allowed to turn off auto-update - it is forced on.
+-        return true;
+-      }
+-      if (!Services.policies.isAllowed("app-auto-updates-on")) {
+-        // We aren't allowed to turn on auto-update - it is forced off.
+-        return false;
+-      }
+-      return null;
+-    },
+   },
+   "app.update.background.enabled": {
+     type: UpdateUtils.PER_INSTALLATION_PREF_TYPE_BOOL,
+     defaultValue: false, // Aether: manual updates only
+     observerTopic: "background-update-config-change",
+-    policyFn: () => {
+-      if (!Services.policies.isAllowed("app-background-update-off")) {
+-        // We aren't allowed to turn off background update - it is forced on.
+-        return true;
+-      }
+-      if (!Services.policies.isAllowed("app-background-update-on")) {
+-        // We aren't allowed to turn on background update - it is forced off.
+-        return false;
+-      }
+-      return null;
+-    },
+   },
+ };
+ 
+diff --git a/toolkit/mozapps/update/UpdateService.sys.mjs b/toolkit/mozapps/update/UpdateService.sys.mjs
+index 5148a6fd71a273510e83e445a9a0dd6e854d6062..ed8476291213cfc670952a1bc932a2403c0cf311 100644
+--- a/toolkit/mozapps/update/UpdateService.sys.mjs
++++ b/toolkit/mozapps/update/UpdateService.sys.mjs
+@@ -3502,6 +3502,14 @@ export class UpdateService {
+       return;
+     }
+ 
++    // Aether: never look for updates on our own. The check has to be
++    // started by the user (Help > About, or Preferences > "Check for
++    // updates"); until then the browser stays quiet.
++    if (this.manualUpdateOnly) {
++      LOG("UpdateService:_attemptResume - manualUpdateOnly, not checking.");
++      return;
++    }
++
+     // Kick off an update check
+     (async () => {
+       let check = lazy.CheckSvc.internal.checkForUpdates(
+@@ -3889,7 +3897,12 @@ export class UpdateService {
+      * Major         Notify
+      * Minor         Auto Install
+      */
+-    let updateAuto = await lazy.UpdateUtils.getAppUpdateAutoEnabled();
++    // Aether: only the user can start a download. Even if some setting or
++    // policy claimed that automatic updates were enabled, the update is
++    // offered to the user instead of being downloaded behind their back.
++    let updateAuto =
++      !this.manualUpdateOnly &&
++      (await lazy.UpdateUtils.getAppUpdateAutoEnabled());
+     if (!updateAuto) {
+       LOG(
+         "UpdateService:_selectAndInstallUpdate - prompting because silent " +

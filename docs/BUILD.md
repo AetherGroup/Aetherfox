@@ -604,3 +604,27 @@ MARs are unsigned, which is why the build passes
 the client's `BUILD_ID` against the MAR's and answers `<updates></updates>` when
 the build is already current, because `mach update serve` would otherwise offer
 the same update on every start. There is no public update server.
+
+**The browser never checks on its own.** The update check starts only when the
+user asks for it (Help > About, or Preferences > "Check for updates"), the
+update is offered, and only the user starts the download and the install. That
+is enforced in code, not in configuration: `UpdateService.manualUpdateOnly` is
+unconditionally `true`, the service does not check when it resumes, and
+`UpdateUtils.getAppUpdateAutoEnabled()` always returns `false` so neither the
+per-installation `update-config.json` nor the upstream `app-auto-updates-*`
+policies can turn automatic updates on (patch 20).
+
+To test the whole flow locally:
+
+```sh
+python scripts/make-mar-local.py --srcdir <src>/obj-aether/dist/aether \
+    --out C:/aether-mar/aether-156.0.1.complete.mar \
+    --version 156.0.1 --channel aether-release
+python scripts/aus-local.py --dir C:/aether-mar \
+    --mar aether-156.0.1.complete.mar --port 8000
+```
+
+Then click "Check for updates" in the browser. Note that `app.update.auto` is
+**per installation** on Windows (`C:\ProgramData\Mozilla-<guid>\updates\<hash>\
+update-config.json`), not a profile pref, and that with the current code it
+cannot switch automatic updates on any more.

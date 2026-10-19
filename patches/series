@@ -1,4 +1,4 @@
-# Aether patch-stack: 18 thematic groups (squash of the 171-unit stack).
+# Aether patch-stack: 20 thematic groups (squash of the 171-unit stack).
 # Quilt style. Application order. Each file carries the member headers.
 core/01-base-product.patch
 core/02-sync-wipe.patch
@@ -19,3 +19,4 @@ core/16-blocker-engine.patch
 core/17-adblock-sections.patch
 core/18-adblock-polish.patch
 core/19-website-urls.patch
+core/20-update-manual-only.patch
