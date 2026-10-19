@@ -4,7 +4,7 @@ First release. Firefox 156.0.1 with telemetry, Sync/FxA and several Mozilla
 subsystems removed, shipped as a public patch stack so the whole delta against
 upstream can be audited without trusting a binary.
 
-The stack holds 18 thematic groups (squash of the 171-unit history). Each
+The stack holds 20 thematic groups (squash of the 171-unit history). Each
 group file carries the headers of its member units, so nothing of the
 history is lost; the per-unit backup lives outside the repo.
 
@@ -125,3 +125,9 @@ release-notes/homepage/update-manual prefs and the report-site
 placeholder now point at the Pages site
 (https://aethergroup.github.io/aether, same paths). Theme add-on IDs
 are identifiers, not links, and stay untouched.
+
+## 20. Aether: manual-only updates
+
+Updates are user-driven, enforced in the code: no startup check, no automatic
+download, no policy hooks. The user starts the search, the user starts the
+download, the user restarts.

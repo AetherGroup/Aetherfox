@@ -1046,6 +1046,24 @@ headers: there should be none.
     `app-auto-updates-*` policies are upstream's; the product does not use
     policies for this). The rule for the product: **the user starts the
     search, the user starts the download, the user restarts.**
+57. **Automation turns the update service off, and the UI blames your
+    organization.** `remote/shared/RecommendedPreferences.sys.mjs` sets
+    `app.update.disabledForTesting=true` for every RemoteAgent/Marionette
+    session, and `UpdateServiceStub.updateDisabledForTesting` then reports the
+    service as disabled. The About dialog and the settings card show upstream's
+    "Updates disabled by your organization" - the same string the
+    `DisableAppUpdate` enterprise policy uses - even though no policy is
+    involved: it is the test harness, not the product. To drive the update UI
+    from marionette, put `remote.prefs.recommended=false` and
+    `app.update.disabledForTesting=false` in the profile (the recommended
+    prefs are re-applied on every session otherwise) and delete the leftover
+    `user_pref("app.update.disabledForTesting", true)` afterwards, because
+    those sessions write it back into `prefs.js`.
+    End-to-end proof of patch 20 with the local AUS: the previous build asked
+    `127.0.0.1:8000` on every start (`/update/.../update.xml?force=1`), the
+    build with patch 20 asks nothing until the user presses "Check for
+    updates"; the only request after the update is the one the settings pane
+    makes when it is opened, and it answers "up to date".
 ---
 
 ## 9. Current state and open decisions
