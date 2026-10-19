@@ -2,7 +2,7 @@
 
 Layout of the shipped exe (same convention as make-setup.py):
 
-  AetherSetup-<version>.exe = sfx-7zSD.Win32.sfx + config + payload.7z
+  AetherfoxSetup-<version>.exe = sfx-7zSD.Win32.sfx + config + payload.7z
 
 where payload.7z holds exactly two files:
 
@@ -31,7 +31,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # branding/sfx-config.txt. RunProgram launches from the temp extraction dir.
 CONFIG = (
     ';!@Install@!UTF-8!\n'
-    'Title="Aether Browser Setup"\n'
+    'Title="Aetherfox Setup"\n'
     'RunProgram="setup-stub.exe"\n'
     ';!@InstallEnd@!\n'
 )
@@ -68,7 +68,7 @@ def main():
                     help="full installer exe (default: <src>/obj-aether/dist/aether-<v>.en-US.win64.installer.exe)")
     ap.add_argument("--sfx", default=str(ROOT / "branding" / "sfx-7zSD.Win32.sfx"))
     ap.add_argument("--out", default=None,
-                    help="default: <src>/obj-aether/dist/AetherSetup-<version>.exe")
+                    help="default: <src>/obj-aether/dist/AetherfoxSetup-<version>.exe")
     args = ap.parse_args()
 
     src = Path(args.src)
@@ -77,7 +77,7 @@ def main():
     stub = Path(args.stub or str(obj / "browser/installer/windows/instgen/setup-stub.exe"))
     full = Path(args.full or str(
         obj / "dist" / f"aether-{version}.en-US.win64.installer.exe"))
-    out = Path(args.out or str(obj / "dist" / f"AetherSetup-{version}.exe"))
+    out = Path(args.out or str(obj / "dist" / f"AetherfoxSetup-{version}.exe"))
     for p in (stub, full):
         if not p.is_file():
             raise SystemExit(f"missing input: {p}")
@@ -106,7 +106,7 @@ def main():
                 if attempt == 5:
                     raise SystemExit(
                         f"cannot write {out}: locked. Close any running "
-                        f"installer windows (setup-stub/AetherSetup) and retry.")
+                        f"installer windows (setup-stub/AetherfoxSetup) and retry.")
                 import time
                 time.sleep(10)
         print(f"[stub-offline] {out} ({out.stat().st_size} bytes)")

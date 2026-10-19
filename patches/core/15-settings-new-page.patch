@@ -733,7 +733,7 @@ index 0000000000000000000000000000000000000000..b679e50e9d1840260a0b3347f270c0ad
 +<head>
 +<meta charset="UTF-8">
 +<meta name="viewport" content="width=device-width, initial-scale=1">
-+<title>Aether Settings</title>
++<title>Aetherfox Settings</title>
 +<link rel="stylesheet" href="chrome://browser/content/aethersettings/aethersettings.css">
 +</head>
 +<body>
@@ -805,13 +805,13 @@ index 0000000000000000000000000000000000000000..b679e50e9d1840260a0b3347f270c0ad
 +<button class="quick-card" data-go="look"><div class="quick-header"><span class="ico"><svg class="i"><use href="#look"/></svg></span><span class="arrow"><svg class="i"><use href="#go"/></svg></span></div><div class="quick-title">Appearance</div><div class="quick-text">Tune colors, density, transparency and visual style.</div></button>
 +<button class="quick-card" data-go="tabs"><div class="quick-header"><span class="ico"><svg class="i"><use href="#tabs"/></svg></span><span class="arrow"><svg class="i"><use href="#go"/></svg></span></div><div class="quick-title">Tabs</div><div class="quick-text">Set up browsing behavior and organization.</div></button>
 +<button class="quick-card" data-go="shield"><div class="quick-header"><span class="ico"><svg class="i"><use href="#shield"/></svg></span><span class="arrow"><svg class="i"><use href="#go"/></svg></span></div><div class="quick-title">Protection</div><div class="quick-text">Manage privacy, tracking, cookies and permissions.</div></button>
-+<button class="quick-card" data-go="upd"><div class="quick-header"><span class="ico"><svg class="i"><use href="#upd"/></svg></span><span class="arrow"><svg class="i"><use href="#go"/></svg></span></div><div class="quick-title">Updates</div><div class="quick-text">Check Aether versions and news.</div></button>
++<button class="quick-card" data-go="upd"><div class="quick-header"><span class="ico"><svg class="i"><use href="#upd"/></svg></span><span class="arrow"><svg class="i"><use href="#go"/></svg></span></div><div class="quick-title">Updates</div><div class="quick-text">Check Aetherfox versions and news.</div></button>
 +</div>
-+<div class="featured"><div class="featured-title">Make Aether yours</div><div class="featured-text">Tune appearance, navigation and privacy into an experience shaped around how you browse.</div><button class="featured-button" data-go="look">Open Appearance</button></div>
++<div class="featured"><div class="featured-title">Make Aetherfox yours</div><div class="featured-text">Tune appearance, navigation and privacy into an experience shaped around how you browse.</div><button class="featured-button" data-go="look">Open Appearance</button></div>
 +</div>
 +<div class="stub" id="stub">Sections follow the same pattern: cards with rows and switches.</div>
 +<section class="panel" id="panel-appearance" hidden>
-+<div class="ahead"><h2>Look and feel</h2><p>Theme and visual style of Aether.</p></div>
++<div class="ahead"><h2>Look and feel</h2><p>Theme and visual style of Aetherfox.</p></div>
 +<section class="sec"><h3>Interface</h3><p>Theme and accent color.</p>
 +<div class="card">
 +<div class="row stack"><div class="t"><b>Browser color</b><small>Light, dark, purple or black, across the whole browser.</small></div><div class="themes" role="radiogroup" aria-label="Browser color">
@@ -820,8 +820,8 @@ index 0000000000000000000000000000000000000000..b679e50e9d1840260a0b3347f270c0ad
 +<button class="th" role="radio" data-t="purple" aria-checked="false" style="--m-bg:#14112B;--m-bar:#2E2766;--m-sf:#1E1946;--m-ed:rgba(155,140,255,.25)"><span class="mini"><span class="mt"><i></i><i></i></span><span class="tb"></span><span class="mc"><i></i><i></i></span></span><span class="lb"><span class="rd"><svg class="i"><use href="#ck"/></svg></span>Purple</span></button>
 +<button class="th" role="radio" data-t="black" aria-checked="false" style="--m-bg:#000;--m-bar:#1A1A1F;--m-sf:#0B0B0F;--m-ed:rgba(255,255,255,.1)"><span class="mini"><span class="mt"><i></i><i></i></span><span class="tb"></span><span class="mc"><i></i><i></i></span></span><span class="lb"><span class="rd"><svg class="i"><use href="#ck"/></svg></span>Black</span></button>
 +<div class="pick" role="group" aria-label="Our favorites"><span class="pk"><svg class="i"><use href="#spark"/></svg>Our favorites</span>
-+<button class="th" role="radio" data-t="aetherlight" aria-checked="false" style="--m-bg:#D8D0F6;--m-bgi:linear-gradient(160deg,#E9E3FC,#C5B9F3);--m-bar:#B3A5EE;--m-sf:#F6F3FF;--m-ed:#BEB2EC"><span class="mini"><span class="mt"><i></i><i></i></span><span class="tb"></span><span class="mc"><i></i><i></i></span></span><span class="lb"><span class="rd"><svg class="i"><use href="#ck"/></svg></span>Aether Light</span></button>
-+<button class="th" role="radio" data-t="aetherdark" aria-checked="false" style="--m-bg:#0F0D16;--m-bgi:linear-gradient(160deg,#1C1830,#0F0D16);--m-bar:#2C2745;--m-sf:#1A1724;--m-ed:rgba(168,148,255,.28)"><span class="mini"><span class="mt"><i></i><i></i></span><span class="tb"></span><span class="mc"><i></i><i></i></span></span><span class="lb"><span class="rd"><svg class="i"><use href="#ck"/></svg></span>Aether Dark</span></button>
++<button class="th" role="radio" data-t="aetherlight" aria-checked="false" style="--m-bg:#D8D0F6;--m-bgi:linear-gradient(160deg,#E9E3FC,#C5B9F3);--m-bar:#B3A5EE;--m-sf:#F6F3FF;--m-ed:#BEB2EC"><span class="mini"><span class="mt"><i></i><i></i></span><span class="tb"></span><span class="mc"><i></i><i></i></span></span><span class="lb"><span class="rd"><svg class="i"><use href="#ck"/></svg></span>Aetherfox Light</span></button>
++<button class="th" role="radio" data-t="aetherdark" aria-checked="false" style="--m-bg:#0F0D16;--m-bgi:linear-gradient(160deg,#1C1830,#0F0D16);--m-bar:#2C2745;--m-sf:#1A1724;--m-ed:rgba(168,148,255,.28)"><span class="mini"><span class="mt"><i></i><i></i></span><span class="tb"></span><span class="mc"><i></i><i></i></span></span><span class="lb"><span class="rd"><svg class="i"><use href="#ck"/></svg></span>Aetherfox Dark</span></button>
 +</div>
 +</div></div>
 +<div class="row"><div class="t"><b>Accent color</b><small>Used for highlights, switches and the active section.</small></div>
@@ -868,23 +868,23 @@ index 0000000000000000000000000000000000000000..3e18310d5a87e9191847f158e90b54b2
 +
 +const INFO = {
 +  panel: ["Dashboard", "Control center", "Jump quickly to the areas of the browser that matter most."],
-+  look: ["Appearance", "Look and feel", "Theme and visual style of Aether."],
++  look: ["Appearance", "Look and feel", "Theme and visual style of Aetherfox."],
 +  tabs: ["Tabs", "Tabs", "Browsing behavior and organization."],
 +  spaces: ["Spaces", "Spaces", "Group tabs by context."],
-+  start: ["Start", "Start", "What you see when Aether opens."],
++  start: ["Start", "Start", "What you see when Aetherfox opens."],
 +  shield: ["Protection", "Protection", "Privacy, tracking, cookies and permissions."],
 +  perm: ["Permissions", "Permissions", "Camera, location and notifications per site."],
 +  cookie: ["Cookies", "Cookies", "Which sites may store data."],
 +  key: ["Passwords", "Passwords", "Saved credentials and autofill."],
 +  perf: ["Performance", "Performance", "Memory, sleeping tabs and acceleration."],
-+  upd: ["Updates", "Updates", "Aether versions and news."],
++  upd: ["Updates", "Updates", "Aetherfox versions and news."],
 +  adv: ["Advanced", "Advanced", "Options for experienced users."],
 +};
 +// Sections with real content; anything else shows the stub.
 +const SECTIONS = { look: "panel-appearance", shield: "panel-shield" };
 +// Swap generation: stale fade callbacks from a superseded switch bail out.
 +let swapGen = 0;
-+const THEME_NAMES = { light: "Light", dark: "Dark", purple: "Purple", black: "Black", aetherlight: "Aether Light", aetherdark: "Aether Dark" };
++const THEME_NAMES = { light: "Light", dark: "Dark", purple: "Purple", black: "Black", aetherlight: "Aetherfox Light", aetherdark: "Aetherfox Dark" };
 +const THEME_ADDONS = {
 +  light: "firefox-compact-light@mozilla.org",
 +  dark: "firefox-compact-dark@mozilla.org",
@@ -2497,7 +2497,7 @@ index b672deda312f84dc0a6a6bf0a4a32edf6e59d402..2a9ebf5c4de3ca06751a63a200988d2a
    },
  });
  
-+// Aether fingerprinting layers: one setting per kill/opt-in pref, rendered
++// Aetherfox fingerprinting layers: one setting per kill/opt-in pref, rendered
 +// as moz-checkbox controls by the aetherProtections group below. The legacy
 +// Preferences.addAll entries above stay as the fallback for the old template
 +// UI when the settings redesign is off.
@@ -2849,7 +2849,7 @@ index 0b5e4a777efecabb6b854d6fc3bbff444b2502e2..854a08a2f141ae79e626d46d02064e00
  aether-protections-reload-desc = Needed to apply the changes.
 +## Stock protections popup section: our layers, same prefs as the shields
 +## panel, so Firefox-design users keep our options.
-+aether-protections-stock-header = Aether fingerprinting
++aether-protections-stock-header = Aetherfox fingerprinting
 +aether-protections-stock-expand =
 +    .aria-label = Show or hide individual protections
 +aether-protections-touch-title = Touch points
@@ -2970,13 +2970,13 @@ index a09601eb7282787b07e9c9fb67eb4c49f18f5d13..4a8f7f6cbf8c31e9e447226e139811f2
 +  .accesskey = W
 +  .description = Lets pages use WebGPU, exposing graphics adapter details. Off by default.
 +aether-ua-token-label =
-+  .label = Include the Aether token in the user agent
++  .label = Include the Aetherfox token in the user agent
 +  .accesskey = K
-+  .description = Identifies the browser as Aether instead of stock Firefox. Off by default.
++  .description = Identifies the browser as Aetherfox instead of stock Firefox. Off by default.
 +aether-design-header = Interface design
-+aether-design-description = Choose the new Aether interface or the stock Firefox one. You can always switch back from the menu.
++aether-design-description = Choose the new Aetherfox interface or the stock Firefox one. You can always switch back from the menu.
 +aether-design-aether-label =
-+  .label = Aether
++  .label = Aetherfox
 +  .accesskey = E
 +aether-design-firefox-label =
 +  .label = Firefox
@@ -4184,9 +4184,9 @@ index 0000000000000000000000000000000000000000..8eb8a85a3f2856a09b682cca5fadeeaf
 +    default: false,
 +    stock: true,
 +    l10n: "aether-ua-token-label",
-+    label: "Include the Aether token in the user agent",
++    label: "Include the Aetherfox token in the user agent",
 +    description:
-+      "Identifies the browser as Aether instead of stock Firefox. Off by " +
++      "Identifies the browser as Aetherfox instead of stock Firefox. Off by " +
 +      "default.",
 +  },
 +];

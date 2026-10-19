@@ -1,8 +1,8 @@
-"""Patches 7zSD.Win32.sfx with the Aether icon and versioninfo.
+"""Patches 7zSD.Win32.sfx with the Aetherfox icon and versioninfo.
 
 The final installer is a prebuilt 7z SFX wrapper (other-licenses/7zstub)
 whose icon and FileDescription are Firefox's. NSIS MUI_ICON only affects the
-inner installer: the icon Explorer shows on AetherSetup-<version>.exe is the
+inner installer: the icon Explorer shows on AetherfoxSetup-<version>.exe is the
 SFX module's own RT_GROUP_ICON/RT_ICON, because make-stub-offline.py
 concatenates branding/sfx-7zSD.Win32.sfx + sfx-config.txt + payload.7z and
 Windows reads the icon off the resulting file. This rewrites those resources
@@ -84,6 +84,147 @@ def build_ico(images):
     return out
 
 
+# --------------------------------------------------------------------------
+# VS_VERSIONINFO rewrite.
+#
+# The upstream stub's file properties say CompanyName "Mozilla",
+# FileDescription/ProductName "Firefox". They are longer than the slots they
+# live in ("Aether Group", "Aetherfox Setup"), so the old equal-length
+# in-place substitution cannot express them: the resource is parsed into its
+# block tree, the string values are replaced, and the tree is re-serialized
+# and written back with UpdateResourceW (which takes any length).
+#
+# This file stores wValueLength in bytes (a string's value includes its NUL),
+# unlike the "words" the MSDN page mentions; the parser keeps that convention,
+# which is proven by a byte-identical parse/serialize round-trip.
+# --------------------------------------------------------------------------
+
+def _u16(b, o):
+    return struct.unpack_from("<H", b, o)[0]
+
+
+def _u32(b, o):
+    return struct.unpack_from("<I", b, o)[0]
+
+
+def _align4(n):
+    return (n + 3) & ~3
+
+
+def read_rt_version(path):
+    """Raw bytes of (type=RT_VERSION, id=1), located without pefile."""
+    data = Path(path).read_bytes()
+    e_lfanew = _u32(data, 0x3C)
+    assert data[e_lfanew:e_lfanew + 4] == b"PE\x00\x00", "not a PE"
+    coff = e_lfanew + 4
+    nsec = _u16(data, coff + 2)
+    opt = coff + 20
+    dd = opt + (112 if _u16(data, opt) == 0x20B else 96)
+    res_rva = _u32(data, dd + 2 * 8)
+    sections = []
+    so = opt + _u16(data, coff + 16)
+    for i in range(nsec):
+        e = so + 40 * i
+        sections.append((_u32(data, e + 12), _u32(data, e + 8),
+                         _u32(data, e + 16), _u32(data, e + 20)))
+
+    def rva2off(rva):
+        for va, vsize, raw_size, raw_ptr in sections:
+            if va <= rva < va + max(vsize, raw_size):
+                return raw_ptr + (rva - va)
+        raise SystemExit(f"rva {rva:#x} not in any section")
+
+    base = rva2off(res_rva)
+
+    def walk(off, want, depth):
+        n_named, n_id = _u16(data, off + 12), _u16(data, off + 14)
+        for i in range(n_named + n_id):
+            e = off + 16 + 8 * i
+            name, sub = _u32(data, e), _u32(data, e + 4)
+            if depth == 0 and name != want:
+                continue
+            if sub & 0x80000000:
+                got = walk(base + (sub & 0x7FFFFFFF), want, depth + 1)
+                if got:
+                    return got
+            else:
+                d = base + sub
+                return rva2off(_u32(data, d)), _u32(data, d + 4)
+        return None
+
+    got = walk(base, RT_VERSION, 0)
+    if not got:
+        raise SystemExit("no RT_VERSION resource in the SFX")
+    off, size = got
+    return data[off:off + size]
+
+
+def parse_vs_block(buf, off):
+    w_len, w_val, w_type = _u16(buf, off), _u16(buf, off + 2), _u16(buf, off + 4)
+    p = off + 6
+    kstart = p
+    while _u16(buf, p) != 0:
+        p += 2
+    key = buf[kstart:p].decode("utf-16-le")
+    p = _align4(p + 2)
+    value = buf[p:p + w_val]
+    p = _align4(p + w_val)
+    children = []
+    while p < off + w_len:
+        child, p = parse_vs_block(buf, p)
+        children.append(child)
+    return {"key": key, "type": w_type, "value": value,
+            "children": children}, off + w_len
+
+
+def serialize_vs_block(b):
+    body = b"".join(serialize_vs_block(c) for c in b["children"])
+    out = bytearray(6)
+    struct.pack_into("<HHH", out, 0, 0, len(b["value"]), b["type"])
+    out += b["key"].encode("utf-16-le") + b"\x00\x00"
+    while len(out) % 4:
+        out += b"\x00"
+    out += b["value"]
+    while len(out) % 4:
+        out += b"\x00"
+    out += body
+    struct.pack_into("<H", out, 0, len(out))
+    return bytes(out)
+
+
+def vs_strings(node, path=()):
+    """Every string-valued leaf, as (index path, node)."""
+    if node["type"] == 1 and not node["children"] and node["key"] not in (
+            "VS_VERSION_INFO", "StringFileInfo", "VarFileInfo"):
+        yield path, node
+    for i, c in enumerate(node["children"]):
+        yield from vs_strings(c, path + (i,))
+
+
+VERSION_MAP = {
+    "CompanyName": "Aether Group",
+    "FileDescription": "Aetherfox Setup",
+    "ProductName": "Aetherfox",
+    "LegalCopyright": "Aether Group",
+}
+
+
+def rewrite_versioninfo(raw):
+    tree, end = parse_vs_block(raw, 0)
+    if end != len(raw):
+        raise SystemExit("RT_VERSION did not parse to its end")
+    assert serialize_vs_block(tree) == raw, "round-trip changed the resource"
+    changed = 0
+    for _, node in vs_strings(tree):
+        new = VERSION_MAP.get(node["key"])
+        if new is None:
+            continue
+        node["value"] = (new + "\x00").encode("utf-16-le")
+        changed += 1
+    return serialize_vs_block(tree), changed
+
+
+
 def main():
     from PIL import Image
     import io
@@ -142,51 +283,22 @@ def main():
     for i, (_, data) in enumerate(images):
         update(RT_ICON, base_id + i, data)
     update(RT_GROUP_ICON, 1, grp)
-    assert W.EndUpdateResourceW(h, False), "EndUpdateResource"
     print("[sfx] icons ok")
 
-    # Versioninfo: equal-length in-place UTF-16 substitution, ONLY inside the
-    # RT_VERSION resource. Direct binary write (pefile only locates the range;
-    # its write() did not persist here).
-    import pefile as _pe
-    _pef = _pe.PE(str(tmp))
-    for entry in _pef.DIRECTORY_ENTRY_RESOURCE.entries:
-        if entry.id != RT_VERSION:
-            continue
-        for lang in entry.directory.entries:
-            for ver in lang.directory.entries:
-                foff = _pef.get_offset_from_rva(
-                    ver.data.struct.OffsetToData)
-                size = ver.data.struct.Size
-                with open(str(tmp), "r+b") as fh:
-                    fh.seek(foff)
-                    seg = bytearray(fh.read(size))
+    # Versioninfo: parse the block tree, rename the values, re-serialize. Read
+    # from the pristine upstream file: the temp copy's RT_VERSION is identical
+    # at this point and reading it mid-update-session would be undefined.
+    raw = read_rt_version(tree_sfx)
+    new_raw, changed = rewrite_versioninfo(raw)
+    update(RT_VERSION, 1, new_raw)
+    print("[sfx] versioninfo: %d cadenas renombradas, %d -> %d bytes"
+          % (changed, len(raw), len(new_raw)))
 
-                def swapurascii(word, new):
-                    old_b = (word + "\x00").encode("utf-16-le")
-                    new_b = (new + "\x00\x00").encode("utf-16-le")
-                    assert len(old_b) == 16 and len(new_b) == 16
-                    n = 0
-                    i = 0
-                    while True:
-                        i = seg.find(old_b, i)
-                        if i < 0:
-                            break
-                        seg[i:i + 16] = new_b
-                        i += 16
-                        n += 1
-                    return n
-
-                n1 = swapurascii("Firefox", "Aether")
-                n2 = swapurascii("Mozilla", "Aether")
-                print("[sfx] versioninfo: %d Firefox, %d Mozilla" % (n1, n2))
-                with open(str(tmp), "r+b") as fh:
-                    fh.seek(foff)
-                    fh.write(bytes(seg))
-    _pef.close()
+    assert W.EndUpdateResourceW(h, False), "EndUpdateResource"
 
     shutil.move(str(tmp), str(OUT_REPO))
     print("[sfx] OK", OUT_REPO, OUT_REPO.stat().st_size, "bytes")
+
 
 
 if __name__ == "__main__":

@@ -10,10 +10,10 @@ Steps:
 `mach package` emits the browser zip plus the Firefox NSIS installers. The
 shipped setup is assembled right here by scripts/make-stub-offline.py:
 the stub UI plus the full installer packed offline into
-`AetherSetup-<version>.exe`, so it installs without downloading. Once packed,
+`AetherfoxSetup-<version>.exe`, so it installs without downloading. Once packed,
 the standalone installers are deleted from dist (the bare stub would
 download from Mozilla; the full one is redundant) — dist ships only
-AetherSetup (plus the zip and small metadata).
+AetherfoxSetup (plus the zip and small metadata).
 
 NSIS is a build requirement for both: the installer itself (installer.nsi via
 makensis) and the uninstaller. helper.exe ships inside the browser
@@ -99,7 +99,7 @@ def main():
          "--src", str(src), "--version", version], cwd=str(ROOT))
 
     dist = objdir / "dist"
-    setup = dist / f"AetherSetup-{version}.exe"
+    setup = dist / f"AetherfoxSetup-{version}.exe"
     if not setup.is_file():
         raise SystemExit(f"make-stub-offline did not produce {setup.name}")
     print(f"[aether] setup: {setup} ({setup.stat().st_size/1e6:.1f} MB)")

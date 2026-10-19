@@ -699,9 +699,9 @@ index 0000000000000000000000000000000000000000..0b5e4a777efecabb6b854d6fc3bbff44
 @@ -0,0 +1,39 @@
 +## Aether shields panel (replaces the Firefox protections popup content).
 +
-+aether-protections-title = Aether Shields
++aether-protections-title = Aetherfox Shields
 +aether-protections-host = Protecting { $host }
-+aether-protections-footer = Aether shields above are your active protection.
++aether-protections-footer = Aetherfox shields above are your active protection.
 +aether-protections-state-on = On
 +aether-protections-state-off = Off
 +aether-protections-expand =

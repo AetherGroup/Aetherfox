@@ -1,5 +1,5 @@
 ;!@Install@!UTF-8!
-Title="Aether Browser Setup"
-InstallPath="%PROGRAMFILES%\Aether Browser"
-RunProgram="Aether Browser\aether.exe"
+Title="Aetherfox Setup"
+InstallPath="%PROGRAMFILES%\Aetherfox"
+RunProgram="Aetherfox\aether.exe"
 ;!@InstallEnd@!

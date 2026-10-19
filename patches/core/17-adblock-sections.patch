@@ -177,14 +177,14 @@ index 3e6f4a8a57c2c13ebcda6ee66643f65bbceadc8d..a34db954112e5ca4c18982b489359c97
 +++ b/browser/base/content/aethersettings/aethersettings.js
 @@ -14,15 +14,15 @@ const INFO = {
    spaces: ["Spaces", "Spaces", "Group tabs by context."],
-   start: ["Start", "Start", "What you see when Aether opens."],
+   start: ["Start", "Start", "What you see when Aetherfox opens."],
    shield: ["Protection", "Protection", "Privacy, tracking, cookies and permissions."],
 +  adblock: ["Ad blocking", "Ad blocking", "Ads, trackers and annoyances, blocked before they load."],
    perm: ["Permissions", "Permissions", "Camera, location and notifications per site."],
    cookie: ["Cookies", "Cookies", "Which sites may store data."],
    key: ["Passwords", "Passwords", "Saved credentials and autofill."],
    perf: ["Performance", "Performance", "Memory, sleeping tabs and acceleration."],
-   upd: ["Updates", "Updates", "Aether versions and news."],
+   upd: ["Updates", "Updates", "Aetherfox versions and news."],
 -  adv: ["Advanced", "Advanced", "Options for experienced users."],
  };
  // Sections with real content; anything else shows the stub.
@@ -192,7 +192,7 @@ index 3e6f4a8a57c2c13ebcda6ee66643f65bbceadc8d..a34db954112e5ca4c18982b489359c97
 +const SECTIONS = { look: "panel-appearance", shield: "panel-shield", adblock: "panel-adblock" };
  // Swap generation: stale fade callbacks from a superseded switch bail out.
  let swapGen = 0;
- const THEME_NAMES = { light: "Light", dark: "Dark", purple: "Purple", black: "Black", aetherlight: "Aether Light", aetherdark: "Aether Dark" };
+ const THEME_NAMES = { light: "Light", dark: "Dark", purple: "Purple", black: "Black", aetherlight: "Aetherfox Light", aetherdark: "Aetherfox Dark" };
 @@ -72,7 +72,7 @@ const PROFILES = [
    {
      id: "standard",
@@ -1666,7 +1666,7 @@ index 9d6d92e4a57cda7efa8f1ed69c7cff9b41f0b7c7..2dfa4788a7ae65616e78f733eaf8fc01
 -  .description = Lets pages use WebGPU, exposing graphics adapter details. Off by default.
 +  .description = Prevents websites from using WebGPU, which reveals details about your graphics hardware.
  aether-ua-token-label =
-   .label = Include the Aether token in the user agent
+   .label = Include the Aetherfox token in the user agent
    .accesskey = K
 diff --git a/browser/themes/shared/controlcenter/aether-shield-color.svg b/browser/themes/shared/controlcenter/aether-shield-color.svg
 new file mode 100644
@@ -2402,9 +2402,9 @@ index 0192a8ff0aedf5275300f4743545504bfad2583b..8334130ab09b4ce42c29088f4cfabc7f
 -    default: false,
 -    stock: true,
 -    l10n: "aether-ua-token-label",
--    label: "Include the Aether token in the user agent",
+-    label: "Include the Aetherfox token in the user agent",
 -    description:
--      "Identifies the browser as Aether instead of stock Firefox. Off by " +
+-      "Identifies the browser as Aetherfox instead of stock Firefox. Off by " +
 -      "default.",
 -  },
 -];

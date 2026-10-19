@@ -20,7 +20,7 @@ index 5c16c3bab161eadcd2c46335ae542d253937a7a2..84d5d4b8113cbc33a0bb2f8b2b663420
 \ No newline at end of file
 +id=aether
 +version=0.1
-+about=Aether Browser
++about=Aetherfox
 \ No newline at end of file
 diff --git a/browser/app/distribution/moz.build b/browser/app/distribution/moz.build
 index b174449a09895020bfda84645b85deebe42c7be8..97e11551a43f96ce21c8a9bef655452402079b9d 100644
@@ -664,9 +664,9 @@ index 0000000000000000000000000000000000000000..ebd500a1fab1b4068f8d68501d169a7e
 +
 +# BrandFullNameInternal is used for some registry and file system values
 +# instead of BrandFullName and typically should not be modified.
-+!define BrandFullNameInternal "Aether Browser"
-+!define BrandFullName         "Aether Browser"
-+!define CompanyName           "Aether"
++!define BrandFullNameInternal "Aetherfox"
++!define BrandFullName         "Aetherfox"
++!define CompanyName           "Aether Group"
 +!define URLInfoAbout          "https://aether.browser"
 +!define HelpLink              "https://aether.browser/support"
 +
@@ -728,7 +728,7 @@ index 0000000000000000000000000000000000000000..c716d0624bae2b09922dc567cd67949c
 +# License, v. 2.0. If a copy of the MPL was not distributed with this
 +# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 +
-+MOZ_APP_DISPLAYNAME=Aether
++MOZ_APP_DISPLAYNAME=Aetherfox
 +MOZ_MACBUNDLE_ID=aetherbrowser
 diff --git a/browser/branding/aether/content/about-logo.svg b/browser/branding/aether/content/about-logo.svg
 new file mode 100644
@@ -749,7 +749,7 @@ index 0000000000000000000000000000000000000000..ebf42290254bc34e22fdf8b54db9f5f9
 +<!-- Aether Browser wordmark (replaces the Firefox wordmark) -->
 +<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 372 99">
 +  <text x="186" y="68" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif"
-+        font-size="64" font-weight="600" letter-spacing="2" fill="#ffffff">Aether</text>
++        font-size="54" font-weight="600" letter-spacing="2" fill="#ffffff">Aetherfox</text>
 +</svg>
 diff --git a/browser/branding/aether/content/firefox-wordmark.svg b/browser/branding/aether/content/firefox-wordmark.svg
 new file mode 100644
@@ -760,7 +760,7 @@ index 0000000000000000000000000000000000000000..d3c8b39bfa9add3f6677b33b9f5c2e1c
 +<!-- Aether Browser wordmark (replaces the Firefox wordmark) -->
 +<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 372 99">
 +  <text x="186" y="68" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif"
-+        font-size="64" font-weight="600" letter-spacing="2" fill="#20123a">Aether</text>
++        font-size="54" font-weight="600" letter-spacing="2" fill="#20123a">Aetherfox</text>
 +</svg>
 diff --git a/browser/branding/aether/content/jar.mn b/browser/branding/aether/content/jar.mn
 new file mode 100644
@@ -2893,7 +2893,7 @@ index 0000000000000000000000000000000000000000..bb2524dec62519b0b0e9a582f6676fdc
 +<head>
 +<meta charset="utf-8">
 +<meta name="viewport" content="width=device-width, initial-scale=1">
-+<title>Aether Setup</title>
++<title>Aetherfox Setup</title>
 +<link rel="icon" href="chrome://branding/content/setup-icon.png">
 +<style>
 +  :root { color-scheme: dark; }
@@ -2921,21 +2921,21 @@ index 0000000000000000000000000000000000000000..bb2524dec62519b0b0e9a582f6676fdc
 +</head>
 +<body>
 +<main>
-+<div class="brand"><img src="chrome://branding/content/setup-icon.png" alt="" width="72" height="72"><h1>Aether Setup</h1></div>
++<div class="brand"><img src="chrome://branding/content/setup-icon.png" alt="" width="72" height="72"><h1>Aetherfox Setup</h1></div>
 +  <div class="sub">Private by default. Nothing below talks to the network until you say so.
 +    Services schema <b>v1</b>.</div>
 +
 +  <div class="card"><label><input type="checkbox" id="opt-updates">
 +    <span><span class="t">Browser updates</span><br>
-+    <span class="d">Check the Aether update endpoint for new versions. Off by default in v1.</span></span></label></div>
++    <span class="d">Check the Aetherfox update endpoint for new versions. Off by default in v1.</span></span></label></div>
 +
 +  <div class="card"><label><input type="checkbox" id="opt-ublock">
 +    <span><span class="t">uBlock filter lists</span><br>
-+    <span class="d">Refresh blocker lists through the Aether proxy instead of third parties.</span></span></label></div>
++    <span class="d">Refresh blocker lists through the Aetherfox proxy instead of third parties.</span></span></label></div>
 +
 +  <div class="card"><label><input type="checkbox" id="opt-sync">
 +    <span><span class="t">Sync</span><br>
-+    <span class="d">Sync bookmarks and settings via your own Aether services endpoint.</span></span></label></div>
++    <span class="d">Sync bookmarks and settings via your own Aetherfox services endpoint.</span></span></label></div>
 +
 +  <div class="card"><span class="t">Services endpoint (optional, self-hostable)</span><br>
 +    <span class="d">Leave empty to use the default endpoint when it exists. You can change this at any time before any request is made.</span>
@@ -2943,7 +2943,7 @@ index 0000000000000000000000000000000000000000..bb2524dec62519b0b0e9a582f6676fdc
 +
 +  <div class="row"><button id="save">Save &amp; continue</button></div>
 +  <div id="status">Saved. No requests were made.</div>
-+  <div class="note">Aether makes zero web requests on first launch. Enabling a service above is explicit consent;
++  <div class="note">Aetherfox makes zero web requests on first launch. Enabling a service above is explicit consent;
 +    each service stays off unless checked. Legal documents live in the public repo with full history.
 +    <br><a href="about:aether-changelog" style="color:#4da3ff">Novedades de esta versi├│n</a> (solo se muestra si la abres t├║).</div>
 +</main>
@@ -3091,7 +3091,7 @@ index 1b30273aa05fec52d98276ee70ad43be63f985b0..997210f9dd639c2645c88a5063111619
  
 -community-2 = { -brand-short-name } is designed by <label data-l10n-name="community-mozillaLink">{ -vendor-short-name }</label>, a <label data-l10n-name="community-creditsLink">global community</label> working together to keep the Web open, public and accessible to all.
 +# Aether: disclaimer inside the Firefox card (replaces community-2) + tooltip showing the update channel on the version.
-+aether-firefox-disclaimer = Aether is based on Mozilla Firefox, working to keep the web independent, fast and secure.
++aether-firefox-disclaimer = Aetherfox is based on Mozilla Firefox, working to keep the web independent, fast and secure.
 +aether-version-channel-tooltip = You are on the { $channel } update channel.
  
  helpus = Want to help? <label data-l10n-name="helpus-donateLink">Make a donation</label> or <label data-l10n-name="helpus-getInvolvedLink">get involved!</label>
@@ -3256,3 +3256,68 @@ index d081f84b38e601eb6aae78b5ae45e1c771777ca7..66ac160fa1693c297f0846a6b28151a6
  
  CUSTOM_NSIS_PLUGINS = \
  	AccessControl.dll \
+diff --git a/browser/app/module.ver b/browser/app/module.ver
+index 5ef8d2a02aefd70f40f5828bdeca0aef77da0288..f60e58a987cd621dfbf039c331afd021509ecc7f 100644
+--- a/browser/app/module.ver
++++ b/browser/app/module.ver
+@@ -1,4 +1,4 @@
+-WIN32_MODULE_COMPANYNAME=Mozilla Corporation
++WIN32_MODULE_COMPANYNAME=Aether Group
+ WIN32_MODULE_COPYRIGHT=�Firefox and Mozilla Developers; available under the MPL 2 license.
+ WIN32_MODULE_PRODUCTVERSION=@MOZ_APP_WINVERSION@
+ WIN32_MODULE_PRODUCTVERSION_STRING=@MOZ_APP_VERSION@
+diff --git a/browser/app/pbproxy/module.ver b/browser/app/pbproxy/module.ver
+index 5ef8d2a02aefd70f40f5828bdeca0aef77da0288..f60e58a987cd621dfbf039c331afd021509ecc7f 100644
+--- a/browser/app/pbproxy/module.ver
++++ b/browser/app/pbproxy/module.ver
+@@ -1,4 +1,4 @@
+-WIN32_MODULE_COMPANYNAME=Mozilla Corporation
++WIN32_MODULE_COMPANYNAME=Aether Group
+ WIN32_MODULE_COPYRIGHT=�Firefox and Mozilla Developers; available under the MPL 2 license.
+ WIN32_MODULE_PRODUCTVERSION=@MOZ_APP_WINVERSION@
+ WIN32_MODULE_PRODUCTVERSION_STRING=@MOZ_APP_VERSION@
+diff --git a/config/create_rc.py b/config/create_rc.py
+index a3cabd5064f01b802b4425a54d495e8a90c0e9b9..2e1568be749a0b95e86ebeecf8cf0d74afc4b04b 100644
+--- a/config/create_rc.py
++++ b/config/create_rc.py
+@@ -300,7 +300,7 @@ def generate_module_rc():
+         fileflags=" | ".join(flags),
+         comment=overrides.get("WIN32_MODULE_COMMENT", ""),
+         copyright=overrides.get("WIN32_MODULE_COPYRIGHT", "License: MPL 2"),
+-        company=overrides.get("WIN32_MODULE_COMPANYNAME", "Mozilla Foundation"),
++        company=overrides.get("WIN32_MODULE_COMPANYNAME", "Aether Group"),
+         description=overrides.get("WIN32_MODULE_DESCRIPTION", ""),
+         mfversion=overrides.get("WIN32_MODULE_FILEVERSION_STRING", milestone_string),
+         mpversion=overrides.get("WIN32_MODULE_PRODUCTVERSION_STRING", milestone_string),
+diff --git a/ipc/app/module.ver b/ipc/app/module.ver
+index 8abbd23f0ea0e6cc70f6309ed5ff2d41ed8e4bc1..1e530d8a2ba15ef879aeeb1cd265949a6b460f57 100644
+--- a/ipc/app/module.ver
++++ b/ipc/app/module.ver
+@@ -1,4 +1,4 @@
+-WIN32_MODULE_COMPANYNAME=Mozilla Corporation
++WIN32_MODULE_COMPANYNAME=Aether Group
+ WIN32_MODULE_PRODUCTVERSION=@MOZ_APP_WINVERSION@
+ WIN32_MODULE_PRODUCTVERSION_STRING=@MOZ_APP_VERSION@
+ WIN32_MODULE_DESCRIPTION=Plugin Container for @MOZ_APP_DISPLAYNAME@
+diff --git a/toolkit/xre/nsAppRunner.cpp b/toolkit/xre/nsAppRunner.cpp
+index 1cf5753154ce35b4c8b3d6392fb2de0282de1693..06e0d6040a1371e04f4fef30d31bbcbbac3a5451 100644
+--- a/toolkit/xre/nsAppRunner.cpp
++++ b/toolkit/xre/nsAppRunner.cpp
+@@ -2259,7 +2259,7 @@ static inline void DumpVersion() {
+   if (gAppData->vendor && *gAppData->vendor) {
+     printf("%s ", (const char*)gAppData->vendor);
+   }
+-  printf("%s ", (const char*)gAppData->name);
++  printf("%s ", MOZ_APP_DISPLAYNAME);
+ 
+   // Use the displayed version
+   // For example, for beta, we would display 42.0b2 instead of 42.0
+@@ -2275,7 +2275,7 @@ static inline void DumpFullVersion() {
+   if (gAppData->vendor && *gAppData->vendor) {
+     printf("%s ", (const char*)gAppData->vendor);
+   }
+-  printf("%s ", (const char*)gAppData->name);
++  printf("%s ", MOZ_APP_DISPLAYNAME);
+ 
+   // Use the displayed version
+   // For example, for beta, we would display 42.0b2 instead of 42.0

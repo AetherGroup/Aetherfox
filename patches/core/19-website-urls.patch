@@ -61,9 +61,9 @@ index ebd500a..f8b52c7 100644
 --- a/browser/branding/aether/branding.nsi
 +++ b/browser/branding/aether/branding.nsi
 @@ -11,14 +11,14 @@
- !define BrandFullNameInternal "Aether Browser"
- !define BrandFullName         "Aether Browser"
- !define CompanyName           "Aether"
+ !define BrandFullNameInternal "Aetherfox"
+ !define BrandFullName         "Aetherfox"
+ !define CompanyName           "Aether Group"
 -!define URLInfoAbout          "https://aether.browser"
 -!define HelpLink              "https://aether.browser/support"
 +!define URLInfoAbout          "https://aethergroup.github.io/aether"

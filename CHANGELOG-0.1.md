@@ -1,4 +1,4 @@
-# Aether Browser 0.1 — changelog
+# Aetherfox 0.1 — changelog
 
 First release. Firefox 156.0.1 with telemetry, Sync/FxA and several Mozilla
 subsystems removed, shipped as a public patch stack so the whole delta against

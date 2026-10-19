@@ -116240,7 +116240,7 @@ index 51b977ac49dc210178ae6f604c2f28b7dc27fa9a..ee47dddc11b647f98528af942275f137
      // Compute a unique prefix for the bridge made between this content process main thread
      // and the worker thread.
 diff --git a/devtools/shared/heapsnapshot/HeapSnapshot.cpp b/devtools/shared/heapsnapshot/HeapSnapshot.cpp
-index 34254216a952c41387bb94994b533bff0d0eac51..b37c09ef93a6c861733bfce73dbc14d460c9ac65 100644
+index 34254216a952c41387bb94994b533bff0d0eac51..22b2f73290bed62dced912da76bca96f86fbf955 100644
 --- a/devtools/shared/heapsnapshot/HeapSnapshot.cpp
 +++ b/devtools/shared/heapsnapshot/HeapSnapshot.cpp
 @@ -30,7 +30,6 @@
@@ -116262,18 +116262,26 @@ index 34254216a952c41387bb94994b533bff0d0eac51..b37c09ef93a6c861733bfce73dbc14d4
  }
  
  /* static */
-@@ -1568,9 +1563,8 @@ already_AddRefed<HeapSnapshot> ChromeUtils::ReadHeapSnapshot(
+@@ -1552,8 +1547,6 @@ void ChromeUtils::SaveHeapSnapshotGetId(
+ /* static */
+ already_AddRefed<HeapSnapshot> ChromeUtils::ReadHeapSnapshot(
+     GlobalObject& global, const nsAString& filePath, ErrorResult& rv) {
+-  auto start = TimeStamp::Now();
+-
+   nsCOMPtr<nsIFile> snapshotFile;
+   rv = NS_NewLocalFile(filePath, getter_AddRefs(snapshotFile));
+   if (rv.Failed()) {
+@@ -1568,10 +1561,6 @@ already_AddRefed<HeapSnapshot> ChromeUtils::ReadHeapSnapshot(
        global.Context(), global, reinterpret_cast<const uint8_t*>(mm.address()),
        mm.size(), rv);
  
 -  if (!rv.Failed())
 -    glean::devtools::read_heap_snapshot.AccumulateRawDuration(TimeStamp::Now() -
 -                                                              start);
-+  if (!rv.Failed()) {
-+  }
- 
+-
    return snapshot.forget();
  }
+ 
 diff --git a/devtools/shared/heapsnapshot/metrics.yaml b/devtools/shared/heapsnapshot/metrics.yaml
 deleted file mode 100644
 index c2339d25ed073de463b8e28deb3577f8c466f383..0000000000000000000000000000000000000000
@@ -116834,7 +116842,7 @@ index 37213ba74100a6e5a4b2fe5f6adb9b536cee3de9..577909db62e97c5bcb89b5c6f8a34c32
          Assert.equal(
            URIInfo.fixedURI && URIInfo.fixedURI.spec,
 diff --git a/dom/base/CCGCScheduler.cpp b/dom/base/CCGCScheduler.cpp
-index 0fa024fb3caec57c60b625126aa95f438012ea84..5caaf2a1d08f341cbc9537ad8c18dd8c18450655 100644
+index 0fa024fb3caec57c60b625126aa95f438012ea84..d5597df2ba523b4c4a2e741e2ecbd14d63ea2438 100644
 --- a/dom/base/CCGCScheduler.cpp
 +++ b/dom/base/CCGCScheduler.cpp
 @@ -10,7 +10,6 @@
@@ -116845,25 +116853,47 @@ index 0fa024fb3caec57c60b625126aa95f438012ea84..5caaf2a1d08f341cbc9537ad8c18dd8c
  #include "nsRefreshDriver.h"
  
  /* Globally initialized constants
-@@ -228,7 +227,6 @@ void CCGCScheduler::NoteGCSliceEnd(TimeStamp aStart, TimeStamp aEnd) {
-   TimeDuration idleDuration = sliceDuration - nonIdleDuration;
-   uint32_t percent =
-       uint32_t(idleDuration.ToSeconds() / sliceDuration.ToSeconds() * 100);
--  glean::dom::gc_slice_during_idle.AccumulateSingleSample(percent);
+@@ -219,17 +218,6 @@ void CCGCScheduler::NoteGCSliceEnd(TimeStamp aStart, TimeStamp aEnd) {
+   PerfStats::RecordMeasurement(PerfStats::Metric::NonIdleMajorGC,
+                                nonIdleDuration);
  
+-  // Note the dom.gc_slice_during_idle previously had a different definition:
+-  // it was a histogram of percentages of externally-triggered slices. It is now
+-  // a histogram of percentages of all slices. That means that now you might
+-  // have a 4ms internal slice (0% during idle) followed by a 16ms external
+-  // slice (15ms during idle), whereas before this would show up as a single
+-  // record of a single slice with 75% of its time during idle (15 of 20ms).
+-  TimeDuration idleDuration = sliceDuration - nonIdleDuration;
+-  uint32_t percent =
+-      uint32_t(idleDuration.ToSeconds() / sliceDuration.ToSeconds() * 100);
+-  glean::dom::gc_slice_during_idle.AccumulateSingleSample(percent);
+-
    mTriggeredGCDeadline.reset();
  }
-@@ -1025,8 +1023,6 @@ JS::SliceBudget CCGCScheduler::ComputeForgetSkippableBudget(
-     double duration =
-         (endPoint - mForgetSkippableFrequencyStartTime).ToSeconds() / 60;
-     uint32_t frequencyPerMinute = uint32_t(mForgetSkippableCounter / duration);
+ 
+@@ -1013,20 +1001,6 @@ JS::SliceBudget CCGCScheduler::ComputeForgetSkippableBudget(
+     mForgetSkippableFrequencyStartTime = aStartTimeStamp;
+   } else if (aStartTimeStamp - mForgetSkippableFrequencyStartTime >
+              kOneMinute) {
+-    TimeStamp startPlusMinute = mForgetSkippableFrequencyStartTime + kOneMinute;
+-
+-    // If we had forget skippables only at the beginning of the interval, we
+-    // still want to use the whole time, minute or more, for frequency
+-    // calculation. mLastForgetSkippableEndTime is needed if forget skippable
+-    // takes enough time to push the interval to be over a minute.
+-    TimeStamp endPoint = std::max(startPlusMinute, mLastForgetSkippableEndTime);
+-
+-    // Duration in minutes.
+-    double duration =
+-        (endPoint - mForgetSkippableFrequencyStartTime).ToSeconds() / 60;
+-    uint32_t frequencyPerMinute = uint32_t(mForgetSkippableCounter / duration);
 -    glean::dom::forget_skippable_frequency.AccumulateSingleSample(
 -        frequencyPerMinute);
      mForgetSkippableCounter = 0;
      mForgetSkippableFrequencyStartTime = aStartTimeStamp;
    }
 diff --git a/dom/base/Document.cpp b/dom/base/Document.cpp
-index 3fa58ad22661760494830d2df7b690ba4e4ed253..52c59df09936027ae15e86aef11df7514d045512 100644
+index 3fa58ad22661760494830d2df7b690ba4e4ed253..7322312d3f634671e5749622223326bb5f5c97cc 100644
 --- a/dom/base/Document.cpp
 +++ b/dom/base/Document.cpp
 @@ -291,8 +291,6 @@
@@ -116930,24 +116960,44 @@ index 3fa58ad22661760494830d2df7b690ba4e4ed253..52c59df09936027ae15e86aef11df751
  }
  
  void Document::ReportLCP() {
-@@ -18097,7 +18073,6 @@ void Document::ReportLCP() {
- 
-   const TimeStamp navStart = timing->GetNavigationStartTimeStamp();
-   const TimeDuration lcp = std::max(lcpTime - navStart, TimeDuration::Zero());
--  mozilla::glean::perf::largest_contentful_paint.AccumulateRawDuration(lcp);
- 
-   if (!GetChannel()) {
+@@ -18091,36 +18067,6 @@ void Document::ReportLCP() {
      return;
-@@ -18118,8 +18093,6 @@ void Document::ReportLCP() {
-   const TimeDuration lcpFromResponseStart =
-       responseStart ? std::max(lcpTime - responseStart, TimeDuration::Zero())
-                     : lcp;
+   }
+ 
+-  // NOTE: lcpTime is subject to precision reduction (for anti-fingerprinting
+-  // reasons) and so subtractions against 'earlier' timestamps could
+-  // unexpectedly result in negative durations, hence the use of std::max().
+-
+-  const TimeStamp navStart = timing->GetNavigationStartTimeStamp();
+-  const TimeDuration lcp = std::max(lcpTime - navStart, TimeDuration::Zero());
+-  mozilla::glean::perf::largest_contentful_paint.AccumulateRawDuration(lcp);
+-
+-  if (!GetChannel()) {
+-    return;
+-  }
+-
+-  nsCOMPtr<nsITimedChannel> timedChannel(do_QueryInterface(GetChannel()));
+-  if (!timedChannel) {
+-    return;
+-  }
+-
+-  TimeStamp responseStart;
+-  timedChannel->GetResponseStart(&responseStart);
+-
+-  // responseStart can be "null" when the entire load has been satisfied from
+-  // the cache and thus there is no response from the network. In that case
+-  // we'll just report the entire LCP time for
+-  // largest_contentful_paint_from_response_start.
+-  const TimeDuration lcpFromResponseStart =
+-      responseStart ? std::max(lcpTime - responseStart, TimeDuration::Zero())
+-                    : lcp;
 -  mozilla::glean::perf::largest_contentful_paint_from_response_start
 -      .AccumulateRawDuration(lcpFromResponseStart);
- 
+-
    if (profiler_thread_is_being_profiled_for_markers()) {
      MarkerInnerWindowId innerWindowID =
-@@ -20121,16 +20094,10 @@ Document::CreatePermissionGrantPromise(nsPIDOMWindowInner* aInnerWindow,
+         MarkerInnerWindowIdFromDocShell(GetDocShell());
+@@ -20121,16 +20067,10 @@ Document::CreatePermissionGrantPromise(nsPIDOMWindowInner* aInnerWindow,
                    inner, principal, aFrameOnly,
                    // Allow
                    [p] {
@@ -116964,7 +117014,7 @@ index 3fa58ad22661760494830d2df7b690ba4e4ed253..52c59df09936027ae15e86aef11df751
                      p->Reject(false, __func__);
                    });
  
-@@ -20139,9 +20106,6 @@ Document::CreatePermissionGrantPromise(nsPIDOMWindowInner* aInnerWindow,
+@@ -20139,9 +20079,6 @@ Document::CreatePermissionGrantPromise(nsPIDOMWindowInner* aInnerWindow,
  
            if (pr == PromptResult::Pending) {
              // We're about to show a prompt, record the request attempt
@@ -116974,7 +117024,7 @@ index 3fa58ad22661760494830d2df7b690ba4e4ed253..52c59df09936027ae15e86aef11df751
            }
  
            bool isThirdPartyTracker =
-@@ -20172,10 +20136,6 @@ Document::CreatePermissionGrantPromise(nsPIDOMWindowInner* aInnerWindow,
+@@ -20172,10 +20109,6 @@ Document::CreatePermissionGrantPromise(nsPIDOMWindowInner* aInnerWindow,
                        pr2 = PromptResult::Granted;
                        autoGrant = true;
  
@@ -116985,7 +117035,23 @@ index 3fa58ad22661760494830d2df7b690ba4e4ed253..52c59df09936027ae15e86aef11df751
                      }
  
                      // If we can complete the permission request, do so.
-@@ -20744,22 +20704,16 @@ void Document::RecordNavigationTiming(ReadyState aReadyState) {
+@@ -20728,38 +20661,19 @@ void Document::RecordNavigationTiming(ReadyState aReadyState) {
+   if (!IsTopLevelContentDocument()) {
+     return;
+   }
+-  // If we dont have the timing yet (mostly because the doc is still loading),
+-  // get it from docshell.
+-  RefPtr<nsDOMNavigationTiming> timing = mTiming;
+-  if (!timing) {
+-    if (!mDocumentContainer) {
+-      return;
+-    }
+-    timing = mDocumentContainer->GetNavigationTiming();
+-    if (!timing) {
+-      return;
+-    }
+-  }
+-  TimeStamp startTime = timing->GetNavigationStartTimeStamp();
    switch (aReadyState) {
      case READYSTATE_LOADING:
        if (!mDOMLoadingSet) {
@@ -117009,7 +117075,7 @@ index 3fa58ad22661760494830d2df7b690ba4e4ed253..52c59df09936027ae15e86aef11df751
        }
        break;
 diff --git a/dom/base/FragmentDirective.cpp b/dom/base/FragmentDirective.cpp
-index ee1c3511910f6c3163a6fdef856e463926ae4766..0c247c643f46e0ce441f3417485b28d3c684c7df 100644
+index ee1c3511910f6c3163a6fdef856e463926ae4766..1433eef57520c866631c2f7eb95e55c6f28cac41 100644
 --- a/dom/base/FragmentDirective.cpp
 +++ b/dom/base/FragmentDirective.cpp
 @@ -22,7 +22,6 @@
@@ -117020,7 +117086,15 @@ index ee1c3511910f6c3163a6fdef856e463926ae4766..0c247c643f46e0ce441f3417485b28d3
  #include "nsContentUtils.h"
  #include "nsDocShell.h"
  #include "nsICSSDeclaration.h"
-@@ -513,9 +512,6 @@ already_AddRefed<Promise> FragmentDirective::CreateTextDirectiveForRanges(
+@@ -466,7 +465,6 @@ already_AddRefed<Promise> FragmentDirective::CreateTextDirectiveForRanges(
+   nsTArray<nsCString> textDirectives;
+   textDirectives.SetCapacity(aRanges.Length());
+ 
+-  const TimeStamp start = TimeStamp::Now();
+   RefPtr<TimeoutWatchdog> watchdog = new TimeoutWatchdog();
+   uint32_t rangeIndex = 0;
+   for (const auto& range : aRanges) {
+@@ -513,9 +511,6 @@ already_AddRefed<Promise> FragmentDirective::CreateTextDirectiveForRanges(
      resultPromise->MaybeResolve(textDirectivesString);
    }
  
@@ -163013,7 +163087,7 @@ index 6ed445c0618b37c57163df4d9c478b2846026c03..03fab1813aac77ea6df6d99756bafbfc
  
  function terminate(succ) {
 diff --git a/dom/html/HTMLFormElement.cpp b/dom/html/HTMLFormElement.cpp
-index 83d227825371e201864b354a22c7f682f9532173..543b469514694f26b5f9ec2a4c7ea5766faa82c0 100644
+index 83d227825371e201864b354a22c7f682f9532173..1a7b7e22804a33ab8649d457c0ee324607df37a5 100644
 --- a/dom/html/HTMLFormElement.cpp
 +++ b/dom/html/HTMLFormElement.cpp
 @@ -50,7 +50,6 @@
@@ -163024,18 +163098,29 @@ index 83d227825371e201864b354a22c7f682f9532173..543b469514694f26b5f9ec2a4c7ea576
  #include "mozilla/intl/Localization.h"
  #include "nsCategoryManagerUtils.h"
  #include "nsIContentInlines.h"
-@@ -1037,11 +1036,8 @@ nsresult HTMLFormElement::DoSecureToInsecureSubmitCheck(nsIURI* aActionURL,
+@@ -59,7 +58,6 @@
+ #include "nsIPromptService.h"
+ #include "nsIScriptError.h"
+ #include "nsIScriptSecurityManager.h"
+-#include "nsISecurityUITelemetry.h"
+ #include "nsISimpleEnumerator.h"
+ #include "nsNetUtil.h"
+ #include "nsRange.h"
+@@ -1035,14 +1033,6 @@ nsresult HTMLFormElement::DoSecureToInsecureSubmitCheck(nsIURI* aActionURL,
+     return rv;
+   }
    *aCancelSubmit = (buttonPressed == 1);
-   uint32_t telemetryBucket =
-       nsISecurityUITelemetry::WARNING_CONFIRM_POST_TO_INSECURE_FROM_SECURE;
+-  uint32_t telemetryBucket =
+-      nsISecurityUITelemetry::WARNING_CONFIRM_POST_TO_INSECURE_FROM_SECURE;
 -  mozilla::glean::security_ui::events.AccumulateSingleSample(telemetryBucket);
-   if (!*aCancelSubmit) {
-     // The user opted to continue, so note that in the next telemetry bucket.
+-  if (!*aCancelSubmit) {
+-    // The user opted to continue, so note that in the next telemetry bucket.
 -    mozilla::glean::security_ui::events.AccumulateSingleSample(telemetryBucket +
 -                                                               1);
-   }
+-  }
    return NS_OK;
  }
+ 
 diff --git a/dom/html/HTMLInputElement.cpp b/dom/html/HTMLInputElement.cpp
 index c7f99855d5978277f300e59a9ebca5b15e424f3c..32951af9174d5378af068c53a8dd463662a396c7 100644
 --- a/dom/html/HTMLInputElement.cpp
@@ -163482,7 +163567,7 @@ index 5c2705dd7f8a06448b1b0ad5499d7b594bb4d2d9..c44c525555de802df2b8240599941fef
  
    ProcessPriorityManagerImpl::SetProcessPriorityIfEnabled(Pid(), mPriority);
 diff --git a/dom/ipc/WindowGlobalParent.cpp b/dom/ipc/WindowGlobalParent.cpp
-index 32041eb17168902948be580cbe0ffc7a5d0fa684..43a2ff43a16d6a2c7eafde6af37092c2e347346e 100644
+index 32041eb17168902948be580cbe0ffc7a5d0fa684..df484736df50462f97f0404aa0b5d953e36db6f8 100644
 --- a/dom/ipc/WindowGlobalParent.cpp
 +++ b/dom/ipc/WindowGlobalParent.cpp
 @@ -66,12 +66,6 @@
@@ -163569,18 +163654,51 @@ index 32041eb17168902948be580cbe0ffc7a5d0fa684..43a2ff43a16d6a2c7eafde6af37092c2
  
    PageUseCounterResult pageUseCounterResult;
    if (mPageUseCountersWindow) {
-@@ -1916,10 +1860,8 @@ void WindowGlobalParent::ActorDestroy(ActorDestroyReason aWhy) {
-     } else if (hasMixedDisplay) {
-       mixedContentLevel = MIXED_DISPLAY_CONTENT;
-     }
--    glean::mixed_content::page_load.AccumulateSingleSample(mixedContentLevel);
- 
-     if (GetDocTreeHadMedia()) {
--      glean::media::element_in_page_count.Add(1);
-     }
+@@ -1886,43 +1830,6 @@ void WindowGlobalParent::ActorDestroy(ActorDestroyReason aWhy) {
+     mPageUseCountersWindow = nullptr;
    }
  
-@@ -1972,9 +1914,6 @@ void WindowGlobalParent::ActorDestroy(ActorDestroyReason aWhy) {
+-  if (GetBrowsingContext()->IsTopContent() &&
+-      !mDocumentPrincipal->SchemeIs("about")) {
+-    // Record the mixed content status of the docshell in Telemetry
+-    enum {
+-      NO_MIXED_CONTENT = 0,  // There is no Mixed Content on the page
+-      MIXED_DISPLAY_CONTENT =
+-          1,  // The page attempted to load Mixed Display Content
+-      MIXED_ACTIVE_CONTENT =
+-          2,  // The page attempted to load Mixed Active Content
+-      MIXED_DISPLAY_AND_ACTIVE_CONTENT = 3  // The page attempted to load Mixed
+-                                            // Display & Mixed Active Content
+-    };
+-
+-    bool hasMixedDisplay =
+-        mSecurityState &
+-        (nsIWebProgressListener::STATE_LOADED_MIXED_DISPLAY_CONTENT |
+-         nsIWebProgressListener::STATE_BLOCKED_MIXED_DISPLAY_CONTENT);
+-    bool hasMixedActive =
+-        mSecurityState &
+-        (nsIWebProgressListener::STATE_LOADED_MIXED_ACTIVE_CONTENT |
+-         nsIWebProgressListener::STATE_BLOCKED_MIXED_ACTIVE_CONTENT);
+-
+-    uint32_t mixedContentLevel = NO_MIXED_CONTENT;
+-    if (hasMixedDisplay && hasMixedActive) {
+-      mixedContentLevel = MIXED_DISPLAY_AND_ACTIVE_CONTENT;
+-    } else if (hasMixedActive) {
+-      mixedContentLevel = MIXED_ACTIVE_CONTENT;
+-    } else if (hasMixedDisplay) {
+-      mixedContentLevel = MIXED_DISPLAY_CONTENT;
+-    }
+-    glean::mixed_content::page_load.AccumulateSingleSample(mixedContentLevel);
+-
+-    if (GetDocTreeHadMedia()) {
+-      glean::media::element_in_page_count.Add(1);
+-    }
+-  }
+-
+   ContentParent* cp = nullptr;
+   if (!IsInProcess()) {
+     cp = static_cast<ContentParent*>(Manager()->Manager());
+@@ -1972,9 +1879,6 @@ void WindowGlobalParent::ActorDestroy(ActorDestroyReason aWhy) {
      obs->NotifyObservers(ToSupports(this), "window-global-destroyed", nullptr);
    }
  
@@ -163590,7 +163708,7 @@ index 32041eb17168902948be580cbe0ffc7a5d0fa684..43a2ff43a16d6a2c7eafde6af37092c2
  }
  
  WindowGlobalParent::~WindowGlobalParent() = default;
-@@ -2046,33 +1985,11 @@ nsIDOMProcessParent* WindowGlobalParent::GetDomProcess() {
+@@ -2046,33 +1950,11 @@ nsIDOMProcessParent* WindowGlobalParent::GetDomProcess() {
  }
  
  void WindowGlobalParent::DidBecomeCurrentWindowGlobal(bool aCurrent) {
@@ -163624,7 +163742,7 @@ index 32041eb17168902948be580cbe0ffc7a5d0fa684..43a2ff43a16d6a2c7eafde6af37092c2
  void WindowGlobalParent::AddSecurityState(uint32_t aStateFlags) {
    MOZ_ASSERT(TopWindowContext() == this);
    MOZ_ASSERT((aStateFlags &
-@@ -2117,21 +2034,6 @@ void WindowGlobalParent::ExitTopChromeDocumentFullscreen() {
+@@ -2117,21 +1999,6 @@ void WindowGlobalParent::ExitTopChromeDocumentFullscreen() {
    }
  }
  
@@ -164826,7 +164944,7 @@ index b0326e129df22ca251b79dfe9c07aafe2b4b9c73..5515243f746f228f07e1d01752dcb99d
    });
  
 diff --git a/dom/media/mediaelement/HTMLMediaElement.cpp b/dom/media/mediaelement/HTMLMediaElement.cpp
-index 7244927def593347d75ed6c5c4dcb5777f3b8952..94a7e97ece9a238663d7cb07702d11a8a63ff098 100644
+index 7244927def593347d75ed6c5c4dcb5777f3b8952..af4d910e29516a7582748fadb90f8a0a79c7849a 100644
 --- a/dom/media/mediaelement/HTMLMediaElement.cpp
 +++ b/dom/media/mediaelement/HTMLMediaElement.cpp
 @@ -95,7 +95,6 @@
@@ -164845,15 +164963,42 @@ index 7244927def593347d75ed6c5c4dcb5777f3b8952..94a7e97ece9a238663d7cb07702d11a8
      }
      mSuspendedByInterrupt = false;
    }
-@@ -2246,7 +2244,6 @@ class HTMLMediaElement::ErrorSink {
-     };
-     nsCString encryptedLabel =
-         mOwner->mMediaKeys ? "encrypted"_ns : "non_encrypted"_ns;
--    glean::media::error.Get(getErrorTypeLabel(), encryptedLabel).Add();
+@@ -2190,7 +2188,6 @@ class HTMLMediaElement::ErrorSink {
+       return;
+     }
+ 
+-    ReportErrorProbe(aErrorCode, aResult);
+     if (mOwner->ReadyState() == HAVE_NOTHING &&
+         aErrorCode == MEDIA_ERR_ABORTED) {
+       // https://html.spec.whatwg.org/multipage/media.html#media-data-processing-steps-list
+@@ -2229,26 +2226,6 @@ class HTMLMediaElement::ErrorSink {
+             aErrorCode == MEDIA_ERR_SRC_NOT_SUPPORTED);
    }
  
+-  void ReportErrorProbe(uint16_t aErrorCode,
+-                        const Maybe<MediaResult>& aResult) {
+-    MOZ_ASSERT(IsValidErrorCode(aErrorCode));
+-    auto getErrorTypeLabel = [&]() {
+-      if (aErrorCode == MEDIA_ERR_ABORTED) {
+-        return "abort_error"_ns;
+-      }
+-      if (aErrorCode == MEDIA_ERR_NETWORK) {
+-        return "network_error"_ns;
+-      }
+-      if (aErrorCode == MEDIA_ERR_DECODE) {
+-        return "decode_error"_ns;
+-      }
+-      return "not_supported_error"_ns;
+-    };
+-    nsCString encryptedLabel =
+-        mOwner->mMediaKeys ? "encrypted"_ns : "non_encrypted"_ns;
+-    glean::media::error.Get(getErrorTypeLabel(), encryptedLabel).Add();
+-  }
+-
    // Media elememt's life cycle would be longer than error sink, so we use the
-@@ -4453,10 +4450,6 @@ already_AddRefed<DOMMediaStream> HTMLMediaElement::CaptureAudio(
+   // raw pointer and this class would only be referenced by media element.
+   HTMLMediaElement* mOwner;
+@@ -4453,10 +4430,6 @@ already_AddRefed<DOMMediaStream> HTMLMediaElement::CaptureAudio(
      return nullptr;
    }
  
@@ -164864,7 +165009,7 @@ index 7244927def593347d75ed6c5c4dcb5777f3b8952..94a7e97ece9a238663d7cb07702d11a8
    RefPtr<DOMMediaStream> stream = CaptureStreamInternal(
        StreamCaptureBehavior::CONTINUE_WHEN_ENDED,
        StreamCaptureType::CAPTURE_AUDIO, AudioOutputConfig::NotNeeded, aGraph);
-@@ -4492,10 +4485,6 @@ already_AddRefed<DOMMediaStream> HTMLMediaElement::MozCaptureStream(
+@@ -4492,10 +4465,6 @@ already_AddRefed<DOMMediaStream> HTMLMediaElement::MozCaptureStream(
      return nullptr;
    }
  
@@ -164875,7 +165020,7 @@ index 7244927def593347d75ed6c5c4dcb5777f3b8952..94a7e97ece9a238663d7cb07702d11a8
    // TODO : our mozCaptureStreamXXX implementation doesn't render audio
    // output, which is not spec compliant. A proper implementation will be
    // implemented in CaptureStream() which will allow audio playback. We don't
-@@ -4523,10 +4512,6 @@ already_AddRefed<DOMMediaStream> HTMLMediaElement::MozCaptureStreamUntilEnded(
+@@ -4523,10 +4492,6 @@ already_AddRefed<DOMMediaStream> HTMLMediaElement::MozCaptureStreamUntilEnded(
      return nullptr;
    }
  
@@ -164886,7 +165031,7 @@ index 7244927def593347d75ed6c5c4dcb5777f3b8952..94a7e97ece9a238663d7cb07702d11a8
    // TODO : our mozCaptureStreamXXX implementation doesn't render audio
    // output, which is not spec compliant. A proper implementation will be
    // implemented in CaptureStream() which will allow audio playback. We don't
-@@ -4552,9 +4537,6 @@ already_AddRefed<DOMMediaStream> HTMLMediaElement::CaptureStream(
+@@ -4552,9 +4517,6 @@ already_AddRefed<DOMMediaStream> HTMLMediaElement::CaptureStream(
      return nullptr;
    }
  
@@ -164896,7 +165041,7 @@ index 7244927def593347d75ed6c5c4dcb5777f3b8952..94a7e97ece9a238663d7cb07702d11a8
    RefPtr<DOMMediaStream> stream =
        CaptureStreamInternal(StreamCaptureBehavior::CONTINUE_WHEN_ENDED,
                              StreamCaptureType::CAPTURE_ALL_TRACKS,
-@@ -5236,7 +5218,6 @@ void HTMLMediaElement::MaybeRecordRuntimeMutedContentAttrImpact() {
+@@ -5236,7 +5198,6 @@ void HTMLMediaElement::MaybeRecordRuntimeMutedContentAttrImpact() {
        (mMuted & ~MUTED_BY_CONTENT)) {
      return;
    }
@@ -164904,7 +165049,7 @@ index 7244927def593347d75ed6c5c4dcb5777f3b8952..94a7e97ece9a238663d7cb07702d11a8
    mRecordedRuntimeContentAttrImpact = true;
  }
  
-@@ -8082,10 +8063,6 @@ void HTMLMediaElement::ResetSetMediaKeysTempVariables() {
+@@ -8082,10 +8043,6 @@ void HTMLMediaElement::ResetSetMediaKeysTempVariables() {
  bool HTMLMediaElement::MozAudioCaptured() const {
    ReportToConsole(nsIScriptError::warningFlag,
                    "MozAudioCapturedDeprecatedWarning");
@@ -164915,7 +165060,7 @@ index 7244927def593347d75ed6c5c4dcb5777f3b8952..94a7e97ece9a238663d7cb07702d11a8
    return mAudioCaptured;
  }
  
-@@ -8363,10 +8340,6 @@ void HTMLMediaElement::AudioCaptureTrackChange(bool aCapture) {
+@@ -8363,10 +8320,6 @@ void HTMLMediaElement::AudioCaptureTrackChange(bool aCapture) {
        return;
      }
  
@@ -166153,7 +166298,7 @@ index e78b31081bd6c424c06e528750490be38f3a027c..00000000000000000000000000000000
 -      - media-alerts@mozilla.com
 -    expires: 159
 diff --git a/dom/media/mp4/DecoderData.cpp b/dom/media/mp4/DecoderData.cpp
-index fdd798d46dfbb9ba24242ed0139c1e0b2d952da4..b415e109fbcf5c5255ebdad4153e6ee6bc3a4d0d 100644
+index fdd798d46dfbb9ba24242ed0139c1e0b2d952da4..7273e53bea7166315c533d06d1959abaffc39ee7 100644
 --- a/dom/media/mp4/DecoderData.cpp
 +++ b/dom/media/mp4/DecoderData.cpp
 @@ -12,7 +12,6 @@
@@ -166164,17 +166309,51 @@ index fdd798d46dfbb9ba24242ed0139c1e0b2d952da4..b415e109fbcf5c5255ebdad4153e6ee6
  #include "mp4parse.h"
  
  #define LOG(...) \
-@@ -88,8 +87,6 @@ static MediaResult UpdateTrackProtectedInfo(mozilla::TrackInfo& aConfig,
+@@ -70,26 +69,15 @@ static MediaResult UpdateTrackProtectedInfo(mozilla::TrackInfo& aConfig,
+ }
+ 
+ // Verify various information shared by Mp4ParseTrackAudioInfo and
+-// Mp4ParseTrackVideoInfo and record telemetry on that info. Returns an
+-// appropriate MediaResult indicating if the info is valid or not.
+-// This verifies:
++// Mp4ParseTrackVideoInfo. Returns an appropriate MediaResult indicating if the
++// info is valid or not. This verifies:
+ // - That we have a sample_info_count > 0 (valid tracks should have at least one
+ //   sample description entry)
+ // - That only a single codec is used across all sample infos, as we don't
+ //   handle multiple.
+-// - If more than one sample information structures contain crypto info. This
+-//   case is not fatal (we don't return an error), but does record telemetry
+-//   to help judge if we need more handling in gecko for multiple crypto.
+-//
+-// Telemetry is also recorded on the above. As of writing, the
+-// telemetry is recorded to give us early warning if MP4s exist that we're not
+-// handling. Note, if adding new checks and telemetry to this function,
+-// telemetry should be recorded before returning to ensure it is gathered.
  template <typename Mp4ParseTrackAudioOrVideoInfo>
- static MediaResult VerifyAudioOrVideoInfoAndRecordTelemetry(
+-static MediaResult VerifyAudioOrVideoInfoAndRecordTelemetry(
++static MediaResult VerifyAudioOrVideoInfo(
      Mp4ParseTrackAudioOrVideoInfo* audioOrVideoInfo) {
 -  glean::media_mp4_parse::num_sample_description_entries.AccumulateSingleSample(
 -      audioOrVideoInfo->sample_info_count);
  
    if (audioOrVideoInfo->sample_info_count == 0) {
      return MediaResult(
-@@ -111,20 +108,9 @@ static MediaResult VerifyAudioOrVideoInfoAndRecordTelemetry(
+@@ -98,34 +86,13 @@ static MediaResult VerifyAudioOrVideoInfoAndRecordTelemetry(
+   }
+ 
+   bool hasMultipleCodecs = false;
+-  uint32_t cryptoCount = 0;
+   Mp4parseCodec codecType = audioOrVideoInfo->sample_info[0].codec_type;
+   for (uint32_t i = 0; i < audioOrVideoInfo->sample_info_count; i++) {
+     if (audioOrVideoInfo->sample_info[i].codec_type != codecType) {
+       hasMultipleCodecs = true;
      }
+-
+-    // Update our encryption info if any is present on the sample info.
+-    if (audioOrVideoInfo->sample_info[i].protected_data.is_encrypted) {
+-      cryptoCount += 1;
+-    }
    }
  
 -  glean::media_mp4_parse::sample_description_entries_have_multiple_codecs
@@ -166183,17 +166362,36 @@ index fdd798d46dfbb9ba24242ed0139c1e0b2d952da4..b415e109fbcf5c5255ebdad4153e6ee6
 -          hasMultipleCodecs))
 -      .Add();
 -
-   // Accumulate if we have multiple (2 or more) crypto entries.
-   // TODO(1715283): rework this to count number of crypto entries + gather
-   // richer data.
+-  // Accumulate if we have multiple (2 or more) crypto entries.
+-  // TODO(1715283): rework this to count number of crypto entries + gather
+-  // richer data.
 -  glean::media_mp4_parse::sample_description_entries_have_multiple_crypto
 -      .EnumGet(static_cast<glean::media_mp4_parse::
 -                               SampleDescriptionEntriesHaveMultipleCryptoLabel>(
 -          cryptoCount >= 2))
 -      .Add();
- 
+-
    if (hasMultipleCodecs) {
      // Different codecs in a single track. We don't handle this.
+     return MediaResult(
+@@ -139,7 +106,7 @@ static MediaResult VerifyAudioOrVideoInfoAndRecordTelemetry(
+ MediaResult MP4AudioInfo::Update(const Mp4parseTrackInfo* aTrack,
+                                  const Mp4parseTrackAudioInfo* aAudio,
+                                  const IndiceWrapper* aIndices) {
+-  auto rv = VerifyAudioOrVideoInfoAndRecordTelemetry(aAudio);
++  auto rv = VerifyAudioOrVideoInfo(aAudio);
+   NS_ENSURE_SUCCESS(rv, rv);
+ 
+   Mp4parseCodec codecType = aAudio->sample_info[0].codec_type;
+@@ -299,7 +266,7 @@ bool MP4AudioInfo::IsValid() const {
+ 
+ MediaResult MP4VideoInfo::Update(const Mp4parseTrackInfo* track,
+                                  const Mp4parseTrackVideoInfo* video) {
+-  auto rv = VerifyAudioOrVideoInfoAndRecordTelemetry(video);
++  auto rv = VerifyAudioOrVideoInfo(video);
+   NS_ENSURE_SUCCESS(rv, rv);
+ 
+   Mp4parseCodec codecType = video->sample_info[0].codec_type;
 diff --git a/dom/media/mp4/metrics.yaml b/dom/media/mp4/metrics.yaml
 deleted file mode 100644
 index fa2c39ef1238ba86e2713f6624f1becd76b05c4e..0000000000000000000000000000000000000000
@@ -167064,7 +167262,7 @@ index de2018e35ab2f1d5db770b923ff12909f1161295..5a8eb4f8e91e141247432b8ac95165b1
    }
  }
 diff --git a/dom/media/webrtc/jsapi/PeerConnectionCtx.cpp b/dom/media/webrtc/jsapi/PeerConnectionCtx.cpp
-index d7295b7c44571aba8ee9b5f09d7de3cd1756729d..fe722e551b56ecdc402890debd7b51c6b1db6480 100644
+index d7295b7c44571aba8ee9b5f09d7de3cd1756729d..0dde123d7553ab85f9054567269e9e87c3e692f0 100644
 --- a/dom/media/webrtc/jsapi/PeerConnectionCtx.cpp
 +++ b/dom/media/webrtc/jsapi/PeerConnectionCtx.cpp
 @@ -26,7 +26,6 @@
@@ -167075,68 +167273,134 @@ index d7295b7c44571aba8ee9b5f09d7de3cd1756729d..fe722e551b56ecdc402890debd7b51c6
  #include "nsCRTGlue.h"
  #include "nsIEventTarget.h"
  #include "nsIIOService.h"
-@@ -304,19 +303,11 @@ static void RecordCommonRtpTelemetry(const T& list, const T& lastList,
-         uint32_t sample = (s.mPacketsLost.Value() * 1000) / total;
-         if (isRemote) {
-           if (isAudio) {
+@@ -291,127 +290,8 @@ void PeerConnectionCtx::Destroy() {
+   }
+ }
+ 
+-template <typename T>
+-static void RecordCommonRtpTelemetry(const T& list, const T& lastList,
+-                                     const bool isRemote) {
+-  for (const auto& s : list) {
+-    const bool isAudio = s.mKind.Find(u"audio") != -1;
+-    if (s.mPacketsLost.WasPassed() && s.mPacketsReceived.WasPassed()) {
+-      if (const uint64_t total =
+-              s.mPacketsLost.Value() + s.mPacketsReceived.Value()) {
+-        // Because this is an integer and we would like some extra precision
+-        // the unit is per mille (1/1000) instead of percent (1/100).
+-        uint32_t sample = (s.mPacketsLost.Value() * 1000) / total;
+-        if (isRemote) {
+-          if (isAudio) {
 -            glean::webrtc::audio_quality_outbound_packetloss_rate
 -                .AccumulateSingleSample(sample);
-           } else {
+-          } else {
 -            glean::webrtc::video_quality_outbound_packetloss_rate
 -                .AccumulateSingleSample(sample);
-           }
-         } else {
-           if (isAudio) {
+-          }
+-        } else {
+-          if (isAudio) {
 -            glean::webrtc::audio_quality_inbound_packetloss_rate
 -                .AccumulateSingleSample(sample);
-           } else {
+-          } else {
 -            glean::webrtc::video_quality_inbound_packetloss_rate
 -                .AccumulateSingleSample(sample);
-           }
-         }
-       }
-@@ -326,19 +317,11 @@ static void RecordCommonRtpTelemetry(const T& list, const T& lastList,
-           TimeDuration::FromMilliseconds(s.mJitter.Value() * 1000);
-       if (isRemote) {
-         if (isAudio) {
+-          }
+-        }
+-      }
+-    }
+-    if (s.mJitter.WasPassed()) {
+-      TimeDuration sample =
+-          TimeDuration::FromMilliseconds(s.mJitter.Value() * 1000);
+-      if (isRemote) {
+-        if (isAudio) {
 -          glean::webrtc::audio_quality_outbound_jitter.AccumulateRawDuration(
 -              sample);
-         } else {
+-        } else {
 -          glean::webrtc::video_quality_outbound_jitter.AccumulateRawDuration(
 -              sample);
-         }
-       } else {
-         if (isAudio) {
+-        }
+-      } else {
+-        if (isAudio) {
 -          glean::webrtc::audio_quality_inbound_jitter.AccumulateRawDuration(
 -              sample);
-         } else {
+-        } else {
 -          glean::webrtc::video_quality_inbound_jitter.AccumulateRawDuration(
 -              sample);
-         }
-       }
-     }
-@@ -386,11 +369,7 @@ void PeerConnectionCtx::DeliverStats(
-               ((s.mBytesReceived.Value() - lastS.mBytesReceived.Value()) * 8) /
-               deltaMs;
-           if (isAudio) {
+-        }
+-      }
+-    }
+-  }
+-}
+-
+-// Telemetry reporting every second after start of first call.
+-// The threading model around the media pipelines is weird:
+-// - The pipelines are containers,
+-// - containers that are only safe on main thread, with members only safe on
+-//   STS,
+-// - hence the there and back again approach.
+-
+ void PeerConnectionCtx::DeliverStats(
+     UniquePtr<dom::RTCStatsReportInternal>&& aReport) {
+-  // First, get reports from a second ago, if any, for calculations below
+-  UniquePtr<dom::RTCStatsReportInternal> lastReport;
+-  {
+-    auto i = mLastReports.find(aReport->mPcid);
+-    if (i != mLastReports.end()) {
+-      lastReport = std::move(i->second);
+-    } else {
+-      lastReport = MakeUnique<dom::RTCStatsReportInternal>();
+-    }
+-  }
+-  // Record Telemetery
+-  RecordCommonRtpTelemetry(aReport->mInboundRtpStreamStats,
+-                           lastReport->mInboundRtpStreamStats, false);
+-  // Record bandwidth telemetry
+-  for (const auto& s : aReport->mInboundRtpStreamStats) {
+-    if (s.mBytesReceived.WasPassed()) {
+-      const bool isAudio = s.mKind.Find(u"audio") != -1;
+-      for (const auto& lastS : lastReport->mInboundRtpStreamStats) {
+-        if (lastS.mId == s.mId) {
+-          int32_t deltaMs = s.mTimestamp.Value() - lastS.mTimestamp.Value();
+-          // In theory we're called every second, so delta *should* be in that
+-          // range. Small deltas could cause errors due to division
+-          if (deltaMs < 500 || deltaMs > 60000 ||
+-              !lastS.mBytesReceived.WasPassed()) {
+-            break;
+-          }
+-          // We could accumulate values until enough time has passed
+-          // and then Accumulate() but this isn't that important
+-          uint32_t sample =
+-              ((s.mBytesReceived.Value() - lastS.mBytesReceived.Value()) * 8) /
+-              deltaMs;
+-          if (isAudio) {
 -            glean::webrtc::audio_quality_inbound_bandwidth_kbits
 -                .AccumulateSingleSample(sample);
-           } else {
+-          } else {
 -            glean::webrtc::video_quality_inbound_bandwidth_kbits
 -                .AccumulateSingleSample(sample);
-           }
-           break;
-         }
-@@ -405,9 +384,7 @@ void PeerConnectionCtx::DeliverStats(
-       TimeDuration sample =
-           TimeDuration::FromMilliseconds(s.mRoundTripTime.Value() * 1000);
-       if (isAudio) {
+-          }
+-          break;
+-        }
+-      }
+-    }
+-  }
+-  RecordCommonRtpTelemetry(aReport->mRemoteInboundRtpStreamStats,
+-                           lastReport->mRemoteInboundRtpStreamStats, true);
+-  for (const auto& s : aReport->mRemoteInboundRtpStreamStats) {
+-    if (s.mRoundTripTime.WasPassed()) {
+-      const bool isAudio = s.mKind.Find(u"audio") != -1;
+-      TimeDuration sample =
+-          TimeDuration::FromMilliseconds(s.mRoundTripTime.Value() * 1000);
+-      if (isAudio) {
 -        glean::webrtc::audio_quality_outbound_rtt.AccumulateRawDuration(sample);
-       } else {
+-      } else {
 -        glean::webrtc::video_quality_outbound_rtt.AccumulateRawDuration(sample);
-       }
-     }
-   }
+-      }
+-    }
+-  }
+-
+   mLastReports[aReport->mPcid] = std::move(aReport);
+ }
+ 
 diff --git a/dom/media/webrtc/jsapi/PeerConnectionImpl.cpp b/dom/media/webrtc/jsapi/PeerConnectionImpl.cpp
 index 0eefdc2645a87b2378d0a18f904dd5e301555b41..ebbf0a3a7ea0577b44a30f449439607e7e8bbe34 100644
 --- a/dom/media/webrtc/jsapi/PeerConnectionImpl.cpp
@@ -167388,7 +167652,7 @@ index 0eefdc2645a87b2378d0a18f904dd5e301555b41..ebbf0a3a7ea0577b44a30f449439607e
  
  void PeerConnectionImpl::StunAddrsHandler::OnMDNSQueryComplete(
 diff --git a/dom/media/webrtc/jsapi/RTCRtpSender.cpp b/dom/media/webrtc/jsapi/RTCRtpSender.cpp
-index 4685bd109897480f14921e56614e8b7b178294ad..ac648f22aa9ca253bdc3ea3d419cad4f270aaf9b 100644
+index 4685bd109897480f14921e56614e8b7b178294ad..1e2e1db57ca7138728f3ed09a944082d0060d96d 100644
 --- a/dom/media/webrtc/jsapi/RTCRtpSender.cpp
 +++ b/dom/media/webrtc/jsapi/RTCRtpSender.cpp
 @@ -55,7 +55,6 @@
@@ -167504,47 +167768,62 @@ index 4685bd109897480f14921e56614e8b7b178294ad..ac648f22aa9ca253bdc3ea3d419cad4f
      }
      p->MaybeReject(std::move(rv));
      return p.forget();
-@@ -2086,27 +2062,16 @@ Maybe<RTCRtpSender::VideoConfig> RTCRtpSender::GetNewVideoConfig() {
-         ulpfecNegotiated = true;
-       }
+@@ -2079,37 +2055,6 @@ Maybe<RTCRtpSender::VideoConfig> RTCRtpSender::GetNewVideoConfig() {
      }
+   }
+ 
+-  if (!mHaveLoggedUlpfecInfo) {
+-    bool ulpfecNegotiated = false;
+-    for (const auto& codec : configs) {
+-      if (nsCRT::strcasestr(codec.mName.c_str(), "ulpfec")) {
+-        ulpfecNegotiated = true;
+-      }
+-    }
 -    mozilla::glean::codec_stats::ulpfec_negotiated
 -        .Get(ulpfecNegotiated ? "negotiated"_ns : "not_negotiated"_ns)
 -        .Add(1);
-     mHaveLoggedUlpfecInfo = true;
-   }
- 
-   // Log codec information we are tracking
-   if (!mHaveLoggedOtherFec &&
-       !GetJsepTransceiver().mSendTrack.GetFecCodecName().empty()) {
+-    mHaveLoggedUlpfecInfo = true;
+-  }
+-
+-  // Log codec information we are tracking
+-  if (!mHaveLoggedOtherFec &&
+-      !GetJsepTransceiver().mSendTrack.GetFecCodecName().empty()) {
 -    mozilla::glean::codec_stats::other_fec_signaled
 -        .Get(nsDependentCString(
 -            GetJsepTransceiver().mSendTrack.GetFecCodecName().c_str()))
 -        .Add(1);
-     mHaveLoggedOtherFec = true;
-   }
-   if (!mHaveLoggedVideoPreferredCodec &&
-       !GetJsepTransceiver().mSendTrack.GetVideoPreferredCodec().empty()) {
+-    mHaveLoggedOtherFec = true;
+-  }
+-  if (!mHaveLoggedVideoPreferredCodec &&
+-      !GetJsepTransceiver().mSendTrack.GetVideoPreferredCodec().empty()) {
 -    mozilla::glean::codec_stats::video_preferred_codec
 -        .Get(nsDependentCString(
 -            GetJsepTransceiver().mSendTrack.GetVideoPreferredCodec().c_str()))
 -        .Add(1);
-     mHaveLoggedVideoPreferredCodec = true;
+-    mHaveLoggedVideoPreferredCodec = true;
+-  }
+-
+   newConfig.mVideoRtpRtcpConfig = Some(details.GetRtpRtcpConfig());
+ 
+   if (newConfig == oldConfig) {
+@@ -2196,15 +2141,6 @@ Maybe<RTCRtpSender::AudioConfig> RTCRtpSender::GetNewAudioConfig() {
+     newConfig.mAudioCodec = Some(sendCodec);
    }
  
-@@ -2198,10 +2163,6 @@ Maybe<RTCRtpSender::AudioConfig> RTCRtpSender::GetNewAudioConfig() {
- 
-   if (!mHaveLoggedAudioPreferredCodec &&
-       !GetJsepTransceiver().mSendTrack.GetAudioPreferredCodec().empty()) {
+-  if (!mHaveLoggedAudioPreferredCodec &&
+-      !GetJsepTransceiver().mSendTrack.GetAudioPreferredCodec().empty()) {
 -    mozilla::glean::codec_stats::audio_preferred_codec
 -        .Get(nsDependentCString(
 -            GetJsepTransceiver().mSendTrack.GetAudioPreferredCodec().c_str()))
 -        .Add(1);
-     mHaveLoggedAudioPreferredCodec = true;
-   }
- 
+-    mHaveLoggedAudioPreferredCodec = true;
+-  }
+-
+   if (newConfig == oldConfig) {
+     MOZ_LOG_FMT(gSenderLog, LogLevel::Debug,
+                 "{}[{}]: {}  No change in audio config",
 diff --git a/dom/media/webrtc/libwebrtcglue/VideoConduit.cpp b/dom/media/webrtc/libwebrtcglue/VideoConduit.cpp
-index 0f335ef98ae626d0b0e6d9ee38bdc5b5de42142b..8cf9b8a1a85e9b39616fa01a8c7d9fd222c5ed99 100644
+index 0f335ef98ae626d0b0e6d9ee38bdc5b5de42142b..fcab5ec6c862bcdcf6fefa5526d25817cf68d5a0 100644
 --- a/dom/media/webrtc/libwebrtcglue/VideoConduit.cpp
 +++ b/dom/media/webrtc/libwebrtcglue/VideoConduit.cpp
 @@ -83,7 +83,6 @@
@@ -167566,17 +167845,21 @@ index 0f335ef98ae626d0b0e6d9ee38bdc5b5de42142b..8cf9b8a1a85e9b39616fa01a8c7d9fd2
    mEncoderConfig.video_stream_factory = CreateVideoStreamFactory();
  
    mSendStreamConfig.encoder_settings.encoder_factory = mEncoderFactory.get();
-@@ -1095,9 +1090,6 @@ void WebrtcVideoConduit::CreateRecvStream() {
-   mRecvStreamConfig.renderer = &mRecvSinkProxy;
+@@ -1093,13 +1088,6 @@ void WebrtcVideoConduit::CreateRecvStream() {
+   }
  
-   for (auto& decoder : mRecvStreamConfig.decoders) {
+   mRecvStreamConfig.renderer = &mRecvSinkProxy;
+-
+-  for (auto& decoder : mRecvStreamConfig.decoders) {
 -    glean::webrtc_video::recv_codec_used
 -        .Get(nsDependentCString(decoder.video_format.name.c_str()))
 -        .Add(1);
-   }
- 
+-  }
+-
    mRecvStreamConfig.decoder_factory = mDecoderFactory.get();
-@@ -1382,40 +1374,16 @@ RefPtr<GenericPromise> WebrtcVideoConduit::Shutdown() {
+ 
+   mRecvStream =
+@@ -1382,40 +1370,16 @@ RefPtr<GenericPromise> WebrtcVideoConduit::Shutdown() {
    return InvokeAsync(
        mCallThread, __func__, [this, self = RefPtr<WebrtcVideoConduit>(this)] {
          if (mSendBitrate.NumDataValues() > 0) {
@@ -171770,36 +172053,222 @@ index befa9f1a488d28cd7afef06396b84b2b16b601ab..d54ba24870cb4f4a2df363a59e2d741c
    auto crashString = nsContentSecurityUtils::SmartFormatCrashString(
        aFilename,
 diff --git a/dom/security/nsHTTPSOnlyStreamListener.cpp b/dom/security/nsHTTPSOnlyStreamListener.cpp
-index c26f377225f2ec3fb0790f0ff47aa4a8bee582a6..f7beaf2afdb952c2e7f7b836f810797490d17b88 100644
+index c26f377225f2ec3fb0790f0ff47aa4a8bee582a6..58a32643ec4db594966e5380d6173369dbe10242 100644
 --- a/dom/security/nsHTTPSOnlyStreamListener.cpp
 +++ b/dom/security/nsHTTPSOnlyStreamListener.cpp
-@@ -7,7 +7,6 @@
- #include "NSSErrorsService.h"
- #include "mozilla/TimeStamp.h"
+@@ -4,28 +4,21 @@
+ 
+ #include "nsHTTPSOnlyStreamListener.h"
+ 
+-#include "NSSErrorsService.h"
+-#include "mozilla/TimeStamp.h"
  #include "mozilla/dom/WindowGlobalParent.h"
 -#include "mozilla/glean/DomSecurityMetrics.h"
- #include "mozpkix/pkixnss.h"
+-#include "mozpkix/pkixnss.h"
  #include "nsCOMPtr.h"
  #include "nsHTTPSOnlyUtils.h"
-@@ -139,8 +138,6 @@ void nsHTTPSOnlyStreamListener::RecordUpgradeTelemetry(nsIRequest* request,
-       category.AppendLiteral("f_other");
-     }
-   }
+ #include "nsIChannel.h"
+ #include "nsIRequest.h"
+-#include "nsITransportSecurityInfo.h"
+ #include "nsIURI.h"
+ #include "nsIWebProgressListener.h"
+ #include "nsPrintfCString.h"
+-#include "secerr.h"
+-#include "sslerr.h"
+ 
+ NS_IMPL_ISUPPORTS(nsHTTPSOnlyStreamListener, nsIStreamListener,
+                   nsIRequestObserver)
+ 
+ nsHTTPSOnlyStreamListener::nsHTTPSOnlyStreamListener(
+     nsIStreamListener* aListener, nsILoadInfo* aLoadInfo)
+-    : mListener(aListener), mCreationStart(mozilla::TimeStamp::Now()) {
++    : mListener(aListener) {
+   RefPtr<mozilla::dom::WindowGlobalParent> wgp =
+       mozilla::dom::WindowGlobalParent::GetByInnerWindowId(
+           aLoadInfo->GetInnerWindowID());
+@@ -58,7 +51,6 @@ nsHTTPSOnlyStreamListener::OnStopRequest(nsIRequest* request,
+ 
+   // Note: CouldBeHttpsOnlyError also returns true if there was no error
+   if (nsHTTPSOnlyUtils::CouldBeHttpsOnlyError(channel, aStatus)) {
+-    RecordUpgradeTelemetry(request, aStatus);
+     LogUpgradeFailure(request, aStatus);
+ 
+     // If the request failed and there is a requesting window-context, set
+@@ -83,174 +75,6 @@ nsHTTPSOnlyStreamListener::OnStopRequest(nsIRequest* request,
+   return listener->OnStopRequest(request, aStatus);
+ }
+ 
+-void nsHTTPSOnlyStreamListener::RecordUpgradeTelemetry(nsIRequest* request,
+-                                                       nsresult aStatus) {
+-  // 1. Get time between now and when the initial upgrade request started
+-  mozilla::TimeDuration duration = mozilla::TimeStamp::Now() - mCreationStart;
+-
+-  // 2. Assemble the category string
+-  // [!] All strings have to be present in Histograms.json
+-  nsresult rv;
+-  nsCOMPtr<nsIChannel> channel = do_QueryInterface(request, &rv);
+-  if (NS_FAILED(rv)) {
+-    return;
+-  }
+-
+-  nsAutoCString category;
+-  nsCOMPtr<nsILoadInfo> loadInfo = channel->LoadInfo();
+-  nsContentPolicyType internalType = loadInfo->InternalContentPolicyType();
+-
+-  if (internalType == nsIContentPolicy::TYPE_DOCUMENT) {
+-    category.AppendLiteral("top_");
+-  } else {
+-    category.AppendLiteral("sub_");
+-  }
+-
+-  if (NS_SUCCEEDED(aStatus)) {
+-    category.AppendLiteral("successful");
+-  } else {
+-    int32_t code = -1 * NS_ERROR_GET_CODE(aStatus);
+-
+-    if (aStatus == NS_ERROR_REDIRECT_LOOP) {
+-      category.AppendLiteral("f_redirectloop");
+-    } else if (aStatus == NS_ERROR_NET_TIMEOUT ||
+-               aStatus == NS_ERROR_NET_TIMEOUT_EXTERNAL) {
+-      category.AppendLiteral("f_timeout");
+-    } else if (aStatus == NS_BINDING_ABORTED) {
+-      category.AppendLiteral("f_aborted");
+-    } else if (aStatus == NS_ERROR_CONNECTION_REFUSED) {
+-      category.AppendLiteral("f_cxnrefused");
+-    } else if (mozilla::psm::IsNSSErrorCode(code)) {
+-      switch (code) {
+-        case mozilla::pkix::MOZILLA_PKIX_ERROR_SELF_SIGNED_CERT:
+-          category.AppendLiteral("f_ssl_selfsignd");
+-          break;
+-        case SSL_ERROR_BAD_CERT_DOMAIN:
+-          category.AppendLiteral("f_ssl_badcertdm");
+-          break;
+-        case SEC_ERROR_UNKNOWN_ISSUER:
+-          category.AppendLiteral("f_ssl_unkwnissr");
+-          break;
+-        default:
+-          category.AppendLiteral("f_ssl_other");
+-          break;
+-      }
+-    } else {
+-      category.AppendLiteral("f_other");
+-    }
+-  }
 -  mozilla::glean::security::https_only_mode_upgrade_time.Get(category)
 -      .AccumulateRawDuration(duration);
- 
-   bool success = NS_SUCCEEDED(aStatus);
-   ExtContentPolicyType externalType = loadInfo->GetExternalContentPolicyType();
-@@ -246,9 +243,6 @@ void nsHTTPSOnlyStreamListener::RecordUpgradeTelemetry(nsIRequest* request,
- 
-   // Needs bug 1657470 (New Metric Type: "Keyed Categorical") before
-   // this can be migrated to Glean.
+-
+-  bool success = NS_SUCCEEDED(aStatus);
+-  ExtContentPolicyType externalType = loadInfo->GetExternalContentPolicyType();
+-  auto typeKey = nsAutoCString("unknown");
+-
+-  if (externalType == ExtContentPolicy::TYPE_MEDIA) {
+-    switch (internalType) {
+-      case nsIContentPolicy::TYPE_INTERNAL_AUDIO:
+-      case nsIContentPolicy::TYPE_INTERNAL_TRACK:
+-        typeKey = "audio"_ns;
+-        break;
+-
+-      case nsIContentPolicy::TYPE_INTERNAL_VIDEO:
+-        typeKey = "video"_ns;
+-        break;
+-
+-      default:
+-        MOZ_ASSERT_UNREACHABLE();
+-        break;
+-    }
+-  } else {
+-    switch (externalType) {
+-      case ExtContentPolicy::TYPE_SCRIPT:
+-        typeKey = "script"_ns;
+-        break;
+-
+-      case ExtContentPolicy::TYPE_OBJECT:
+-        typeKey = "object"_ns;
+-        break;
+-
+-      case ExtContentPolicy::TYPE_DOCUMENT:
+-        typeKey = "document"_ns;
+-        break;
+-
+-      case ExtContentPolicy::TYPE_SUBDOCUMENT:
+-        typeKey = "subdocument"_ns;
+-        break;
+-
+-      case ExtContentPolicy::TYPE_XMLHTTPREQUEST:
+-        typeKey = "xmlhttprequest"_ns;
+-        break;
+-
+-      case ExtContentPolicy::TYPE_IMAGE:
+-      case ExtContentPolicy::TYPE_IMAGESET:
+-        typeKey = "image"_ns;
+-        break;
+-
+-      case ExtContentPolicy::TYPE_DTD:
+-        typeKey = "dtd"_ns;
+-        break;
+-
+-      case ExtContentPolicy::TYPE_FONT:
+-      case ExtContentPolicy::TYPE_UA_FONT:
+-        typeKey = "font"_ns;
+-        break;
+-
+-      case ExtContentPolicy::TYPE_FETCH:
+-        typeKey = "fetch"_ns;
+-        break;
+-
+-      case ExtContentPolicy::TYPE_WEBSOCKET:
+-        typeKey = "websocket"_ns;
+-        break;
+-
+-      case ExtContentPolicy::TYPE_STYLESHEET:
+-        typeKey = "stylesheet"_ns;
+-        break;
+-
+-      case ExtContentPolicy::TYPE_CSP_REPORT:
+-        typeKey = "cspreport"_ns;
+-        break;
+-
+-      case ExtContentPolicy::TYPE_WEB_MANIFEST:
+-        typeKey = "webmanifest"_ns;
+-        break;
+-
+-      case ExtContentPolicy::TYPE_PING:
+-        typeKey = "ping"_ns;
+-        break;
+-
+-      case ExtContentPolicy::TYPE_XSLT:
+-        typeKey = "xslt"_ns;
+-        break;
+-
+-      case ExtContentPolicy::TYPE_PROXIED_WEBRTC_MEDIA:
+-        typeKey = "proxied-webrtc"_ns;
+-        break;
+-
+-      case ExtContentPolicy::TYPE_INVALID:
+-      case ExtContentPolicy::TYPE_OTHER:
+-      case ExtContentPolicy::TYPE_MEDIA:  // already handled above
+-      case ExtContentPolicy::TYPE_BEACON:
+-      case ExtContentPolicy::TYPE_SAVEAS_DOWNLOAD:
+-      case ExtContentPolicy::TYPE_SPECULATIVE:
+-      case ExtContentPolicy::TYPE_WEB_TRANSPORT:
+-      case ExtContentPolicy::TYPE_WEB_IDENTITY:
+-      case ExtContentPolicy::TYPE_JSON:
+-      case ExtContentPolicy::TYPE_TEXT:
+-        break;
+-        // Do not add default: so that compilers can catch the missing case.
+-    }
+-  }
+-
+-  // Needs bug 1657470 (New Metric Type: "Keyed Categorical") before
+-  // this can be migrated to Glean.
 -  mozilla::glean::security::https_only_mode_upgrade_type
 -      .Get(typeKey, success ? "true"_ns : "false"_ns)
 -      .Add();
- }
- 
+-}
+-
  void nsHTTPSOnlyStreamListener::LogUpgradeFailure(nsIRequest* request,
+                                                   nsresult aStatus) {
+   // If the request failed we'll log it to the console with the error-code
 diff --git a/dom/security/nsHTTPSOnlyUtils.cpp b/dom/security/nsHTTPSOnlyUtils.cpp
 index 051b13e67368cbb16df725c1570897479ffc2488..8a84bdcacf5fb7b205f8ad5b99398ba490d1f364 100644
 --- a/dom/security/nsHTTPSOnlyUtils.cpp
@@ -178716,7 +179185,7 @@ index 5427cf383aa6268d7507ef7d848b57fa02d8a61a..5985e217c27850eeba2b460c23f2349a
  
  /* static */
 diff --git a/ipc/glue/GeckoChildProcessHost.cpp b/ipc/glue/GeckoChildProcessHost.cpp
-index e2b4d823617c1d154ff21b6d97818ce298c3270a..e89de253300b062d999ca7526f069c6bffff22cb 100644
+index e2b4d823617c1d154ff21b6d97818ce298c3270a..3476bb246e6b0b7d7cc5ed1b2a82d13f00d08648 100644
 --- a/ipc/glue/GeckoChildProcessHost.cpp
 +++ b/ipc/glue/GeckoChildProcessHost.cpp
 @@ -48,8 +48,6 @@
@@ -178728,7 +179197,24 @@ index e2b4d823617c1d154ff21b6d97818ce298c3270a..e89de253300b062d999ca7526f069c6b
  #include "mozilla/UniquePtrExtensions.h"
  #include "mozilla/ipc/IOThread.h"
  #include "mozilla/ipc/EnvironmentMap.h"
-@@ -817,9 +815,6 @@ bool GeckoChildProcessHost::AsyncLaunch(
+@@ -748,7 +746,6 @@ bool GeckoChildProcessHost::AsyncLaunch(
+ 
+   RefPtr<BaseProcessLauncher> launcher =
+       MakeRefPtr<ProcessLauncher>(this, std::move(aExtraOpts));
+-  TimeStamp startTimeStamp = TimeStamp::Now();
+ #ifdef ALLOW_GECKO_CHILD_PROCESS_ARCH
+   launcher->SetLaunchArchitecture(mLaunchArch);
+ #endif
+@@ -763,7 +760,7 @@ bool GeckoChildProcessHost::AsyncLaunch(
+           &BaseProcessLauncher::Launch, this)
+           ->Then(
+               XRE_GetAsyncIOEventTarget(), __func__,
+-              [this, startTimeStamp](LaunchResults&& aResults) {
++              [this](LaunchResults&& aResults) {
+                 {
+                   {
+                     mozilla::AutoWriteLock handleLock(mHandleLock);
+@@ -817,9 +814,6 @@ bool GeckoChildProcessHost::AsyncLaunch(
                             GetChildProcessId(), mChildID,
                             XRE_GeckoProcessTypeToString(mProcessType)));
  
@@ -178738,7 +179224,7 @@ index e2b4d823617c1d154ff21b6d97818ce298c3270a..e89de253300b062d999ca7526f069c6b
                    MonitorAutoLock lock(mMonitor);
                    // The OnChannel{Connected,Error} may have already advanced
                    // the state.
-@@ -839,10 +834,6 @@ bool GeckoChildProcessHost::AsyncLaunch(
+@@ -839,10 +833,6 @@ bool GeckoChildProcessHost::AsyncLaunch(
                      << XRE_GeckoProcessTypeToString(mProcessType)
                      << " subprocess @" << aError.FunctionName()
                      << " (Error:" << aError.ErrorCode() << ")";
@@ -178749,7 +179235,7 @@ index e2b4d823617c1d154ff21b6d97818ce298c3270a..e89de253300b062d999ca7526f069c6b
                  nsCString telemetryKey = nsPrintfCString(
  #if defined(XP_WIN)
                      "%s,0x%lx,%s",
-@@ -859,9 +850,6 @@ bool GeckoChildProcessHost::AsyncLaunch(
+@@ -859,9 +849,6 @@ bool GeckoChildProcessHost::AsyncLaunch(
                                   .get());
                    telemetryKey.Truncate(72);
                  }
@@ -180533,7 +181019,7 @@ index 722eab04db21add03319f579ad9842f70b21ac14..b59f800c17f2fbdcd7979d63daec3a12
    }, "Should find an event after doing this.").catch(e => ok(false, e));
    ok(event, "Should have registered an event.");
 diff --git a/layout/base/PresShell.cpp b/layout/base/PresShell.cpp
-index 8b1f69b52380f0606a180c8cfd34cfb24580ccbe..09777b7c7c69bdbd199a63b289c3ded54fd29e72 100644
+index 8b1f69b52380f0606a180c8cfd34cfb24580ccbe..795a0bb497a944440b36a8bb3ce5cd9a068fadf0 100644
 --- a/layout/base/PresShell.cpp
 +++ b/layout/base/PresShell.cpp
 @@ -125,8 +125,6 @@
@@ -180588,16 +181074,17 @@ index 8b1f69b52380f0606a180c8cfd34cfb24580ccbe..09777b7c7c69bdbd199a63b289c3ded5
        [[fallthrough]];
      case ePointerDown:
      case ePointerUp:
-@@ -9777,18 +9757,14 @@ void PresShell::EventHandler::RecordEventHandlingResponsePerformance(
- 
-   TimeStamp now = TimeStamp::Now();
-   TimeDuration duration = now - aEvent->mTimeStamp;
--  glean::layout::input_event_response.AccumulateRawDuration(duration);
-   if (GetDocument() &&
-       GetDocument()->GetReadyStateEnum() != Document::READYSTATE_COMPLETE) {
--    glean::layout::load_input_event_response.AccumulateRawDuration(duration);
+@@ -9776,19 +9756,10 @@ void PresShell::EventHandler::RecordEventHandlingResponsePerformance(
    }
  
+   TimeStamp now = TimeStamp::Now();
+-  TimeDuration duration = now - aEvent->mTimeStamp;
+-  glean::layout::input_event_response.AccumulateRawDuration(duration);
+-  if (GetDocument() &&
+-      GetDocument()->GetReadyStateEnum() != Document::READYSTATE_COMPLETE) {
+-    glean::layout::load_input_event_response.AccumulateRawDuration(duration);
+-  }
+-
    if (!sLastInputProcessed || sLastInputProcessed < aEvent->mTimeStamp) {
      if (sLastInputProcessed) {
        // This input event was created after we handled the last one.
@@ -180607,7 +181094,7 @@ index 8b1f69b52380f0606a180c8cfd34cfb24580ccbe..09777b7c7c69bdbd199a63b289c3ded5
  
        if (MOZ_UNLIKELY(!PresShell::sProcessInteractable)) {
          // For content process, we use the ready state of
-@@ -10982,11 +10958,6 @@ bool PresShell::ProcessReflowCommands(bool aInterruptible) {
+@@ -10982,11 +10953,6 @@ bool PresShell::ProcessReflowCommands(bool aInterruptible) {
      TimeDuration elapsed = TimeStamp::Now() - timerStart;
      int32_t intElapsed = int32_t(elapsed.ToMilliseconds());
      if (intElapsed > NS_LONG_REFLOW_TIME_MS) {
@@ -180915,7 +181402,7 @@ index 02a771ca9348effa388f2c7c6a753b08bae346e9..6e6f7ac520d16d521606dfbd716f80c1
    } else {
      inProcessRootPresContext->RecordInteractionTime(aType, aTimeStamp);
 diff --git a/layout/base/nsRefreshDriver.cpp b/layout/base/nsRefreshDriver.cpp
-index ed95790541351cb6ad8d6bdbd28a44366cd1121b..acba12817cadba9694f81857f42f01e07a64be0d 100644
+index ed95790541351cb6ad8d6bdbd28a44366cd1121b..ac06013b2332bdd145bf4c0eea668ae6860d619d 100644
 --- a/layout/base/nsRefreshDriver.cpp
 +++ b/layout/base/nsRefreshDriver.cpp
 @@ -76,7 +76,6 @@
@@ -180926,25 +181413,44 @@ index ed95790541351cb6ad8d6bdbd28a44366cd1121b..acba12817cadba9694f81857f42f01e0
  #include "mozilla/ipc/BackgroundChild.h"
  #include "mozilla/ipc/PBackgroundChild.h"
  #include "mozilla/layers/WebRenderLayerManager.h"
-@@ -758,8 +757,6 @@ class VsyncRefreshDriverTimer : public RefreshDriverTimer {
+@@ -753,25 +752,10 @@ class VsyncRefreshDriverTimer : public RefreshDriverTimer {
+     TickRefreshDriver(aVsyncEvent.mId, aVsyncEvent.mTime);
+   }
+ 
+-  void RecordTelemetryProbes(TimeStamp aVsyncTimestamp) {
++  void UpdateVsyncRate() {
+     MOZ_ASSERT(NS_IsMainThread());
  #ifndef ANDROID /* bug 1142079 */
-     if (XRE_IsParentProcess()) {
-       TimeDuration vsyncLatency = TimeStamp::Now() - aVsyncTimestamp;
+-    if (XRE_IsParentProcess()) {
+-      TimeDuration vsyncLatency = TimeStamp::Now() - aVsyncTimestamp;
 -      glean::layout::refresh_driver_chrome_frame_delay.AccumulateRawDuration(
 -          vsyncLatency);
-     } else if (mVsyncRate != TimeDuration::Forever()) {
-       TimeDuration contentDelay =
-           (TimeStamp::Now() - mLastTickStart) - mVsyncRate;
-@@ -769,8 +766,6 @@ class VsyncRefreshDriverTimer : public RefreshDriverTimer {
-         // delay.
-         contentDelay = TimeDuration::FromMilliseconds(0);
-       }
+-    } else if (mVsyncRate != TimeDuration::Forever()) {
+-      TimeDuration contentDelay =
+-          (TimeStamp::Now() - mLastTickStart) - mVsyncRate;
+-      if (contentDelay.ToMilliseconds() < 0) {
+-        // Vsyncs are noisy and some can come at a rate quicker than
+-        // the reported hardware rate. In those cases, consider that we have 0
+-        // delay.
+-        contentDelay = TimeDuration::FromMilliseconds(0);
+-      }
 -      glean::layout::refresh_driver_content_frame_delay.AccumulateRawDuration(
 -          contentDelay);
-     } else {
+-    } else {
++    if (!XRE_IsParentProcess() && mVsyncRate == TimeDuration::Forever()) {
        // Request the vsync rate which VsyncChild stored the last time it got a
        // vsync notification.
-@@ -2588,8 +2583,6 @@ void nsRefreshDriver::Tick(VsyncId aId, TimeStamp aNowTime,
+       mVsyncRate = mVsyncChild->GetVsyncRate();
+@@ -813,7 +797,7 @@ class VsyncRefreshDriverTimer : public RefreshDriverTimer {
+   void TickRefreshDriver(VsyncId aId, TimeStamp aVsyncTimestamp) {
+     MOZ_ASSERT(NS_IsMainThread());
+ 
+-    RecordTelemetryProbes(aVsyncTimestamp);
++    UpdateVsyncRate();
+ 
+     TimeStamp tickStart = TimeStamp::Now();
+ 
+@@ -2588,8 +2572,6 @@ void nsRefreshDriver::Tick(VsyncId aId, TimeStamp aNowTime,
    UpdateRemoteFrameEffects();
  
  #ifndef ANDROID /* bug 1142079 */
@@ -182013,7 +182519,7 @@ index 2dd436d717072c0ae99222fd3d714928e5774f94..a1808dcc70dc595aaac3d7ef88c336e5
  }
  
 diff --git a/netwerk/base/nsLoadGroup.cpp b/netwerk/base/nsLoadGroup.cpp
-index cced35f4bb0190184005f12762cb3368f59fe922..68b479b124c4f474ea9ac2cf829b9968bb12bafc 100644
+index cced35f4bb0190184005f12762cb3368f59fe922..8980e6e8b5233082ac65b8dadba5c9e38228980a 100644
 --- a/netwerk/base/nsLoadGroup.cpp
 +++ b/netwerk/base/nsLoadGroup.cpp
 @@ -11,8 +11,6 @@
@@ -182053,7 +182559,7 @@ index cced35f4bb0190184005f12762cb3368f59fe922..68b479b124c4f474ea9ac2cf829b9968
    }
    // Else, do not change the group's load flags (see bug 95981)
    return NS_OK;
-@@ -480,16 +464,6 @@ nsLoadGroup::RemoveRequest(nsIRequest* request, nsISupports* ctxt,
+@@ -480,20 +464,9 @@ nsLoadGroup::RemoveRequest(nsIRequest* request, nsISupports* ctxt,
    return NotifyRemovalObservers(request, aStatus);
  }
  
@@ -182070,7 +182576,11 @@ index cced35f4bb0190184005f12762cb3368f59fe922..68b479b124c4f474ea9ac2cf829b9968
  nsresult nsLoadGroup::RemoveRequestFromHashtable(nsIRequest* request,
                                                   nsresult aStatus) {
    NS_ENSURE_ARG_POINTER(request);
-@@ -518,47 +492,6 @@ nsresult nsLoadGroup::RemoveRequestFromHashtable(nsIRequest* request,
+-  nsresult rv;
+ 
+   if (MOZ_LOG_TEST(gLoadGroupLog, LogLevel::Debug)) {
+     nsAutoCString nameStr;
+@@ -518,47 +491,6 @@ nsresult nsLoadGroup::RemoveRequestFromHashtable(nsIRequest* request,
      return NS_ERROR_FAILURE;
    }
  
@@ -182118,7 +182628,7 @@ index cced35f4bb0190184005f12762cb3368f59fe922..68b479b124c4f474ea9ac2cf829b9968
    if (mRequests.Count() == 0) {
      TelemetryReport();
    }
-@@ -770,278 +703,10 @@ nsLoadGroup::SetDefaultLoadFlags(uint32_t aFlags) {
+@@ -770,278 +702,10 @@ nsLoadGroup::SetDefaultLoadFlags(uint32_t aFlags) {
  ////////////////////////////////////////////////////////////////////////////////
  
  void nsLoadGroup::TelemetryReport() {
@@ -183992,7 +184502,7 @@ index 212a2388e00abb6f78e3600ad1344ab49593ff32..24fcceed48b4cb33a39acea1a89dffe7
    {
      // Cancel the timer since we don't need it anymore.
 diff --git a/netwerk/dns/TRRQuery.cpp b/netwerk/dns/TRRQuery.cpp
-index ab6e52584903200439bd37b7c4789bdabf11e8f9..78e4be3fa125f4ce64701f7c54f1880521b10423 100644
+index ab6e52584903200439bd37b7c4789bdabf11e8f9..1326ff1fe161dbd90d0872e01f8808a20a8c64bd 100644
 --- a/netwerk/dns/TRRQuery.cpp
 +++ b/netwerk/dns/TRRQuery.cpp
 @@ -7,7 +7,6 @@
@@ -184003,7 +184513,15 @@ index ab6e52584903200439bd37b7c4789bdabf11e8f9..78e4be3fa125f4ce64701f7c54f18805
  #include "nsITRRSkipReason.h"
  #include "nsQueryObject.h"
  // Put DNSLogging.h at the end to avoid LOG being overwritten by other headers.
-@@ -345,27 +344,6 @@ AHostResolver::LookupStatus TRRQuery::CompleteLookup(
+@@ -192,7 +191,6 @@ AHostResolver::LookupStatus TRRQuery::CompleteLookup(
+   LOG(("TRRQuery::CompleteLookup > host: %s", rec->host.get()));
+ 
+   RefPtr<AddrInfo> newRRSet(aNewRRSet);
+-  DNSResolverType resolverType = newRRSet->ResolverType();
+   {
+     MutexAutoLock trrlock(mTrrLock);
+     if (newRRSet->TRRType() == TRRTYPE_A) {
+@@ -345,27 +343,6 @@ AHostResolver::LookupStatus TRRQuery::CompleteLookup(
      newRRSet = mHostResolver->GetNCS()->MapNAT64IPs(newRRSet);
    }
  
@@ -195206,7 +195724,7 @@ index c8edf25730c78d35ba73d28a8318a3f8121de772..3b4ad9f5932e3a397db3dd6a264e6bd9
  
    if (!earlyDataAccepted) {
 diff --git a/netwerk/protocol/http/nsHttpConnectionMgr.cpp b/netwerk/protocol/http/nsHttpConnectionMgr.cpp
-index ef8a32da7a3f66424ae72a8d49d577520525bcd0..3b49e6b8f5f7883989cebfbaa198ab23a5963dfb 100644
+index ef8a32da7a3f66424ae72a8d49d577520525bcd0..3dfa9429db3085f35dd0dd1c97d0894776db8463 100644
 --- a/netwerk/protocol/http/nsHttpConnectionMgr.cpp
 +++ b/netwerk/protocol/http/nsHttpConnectionMgr.cpp
 @@ -23,8 +23,6 @@
@@ -195254,13 +195772,15 @@ index ef8a32da7a3f66424ae72a8d49d577520525bcd0..3b49e6b8f5f7883989cebfbaa198ab23
      trans->SetPendingTime(false);
    }
    return rv;
-@@ -4092,9 +4078,6 @@ void nsHttpConnectionMgr::CheckTransInPendingQueue(nsHttpTransaction* aTrans) {
+@@ -4091,10 +4077,7 @@ void nsHttpConnectionMgr::CheckTransInPendingQueue(nsHttpTransaction* aTrans) {
+     return;
    }
  
-   bool foundInPendingQ = RemoveTransFromConnEntry(aTrans, hashKey);
+-  bool foundInPendingQ = RemoveTransFromConnEntry(aTrans, hashKey);
 -  if (foundInPendingQ) {
 -    glean::networking::trans_found_in_pending_queue.Add(1);
 -  }
++  DebugOnly<bool> foundInPendingQ = RemoveTransFromConnEntry(aTrans, hashKey);
    MOZ_ASSERT(!foundInPendingQ);
  }
  
@@ -196748,7 +197268,7 @@ index 15568b704d43a562d29e925525d334b95916dd4f..07ea92cf8c5b767456bb18fdc076bfed
      if (topic === "nsPref:changed") {
        // If the user changes the baseline, convenience, or category preference, we set
 diff --git a/netwerk/url-classifier/UrlClassifierFeatureEmailTrackingDataCollection.cpp b/netwerk/url-classifier/UrlClassifierFeatureEmailTrackingDataCollection.cpp
-index 4725b4ba6494e71158a843a1d2a18918fc607563..6ed5d2b7cf19c349ff2c61afda5267cb43244415 100644
+index 4725b4ba6494e71158a843a1d2a18918fc607563..eb6b461fb86a78bd5a2354bc378b47e0b48ccdb0 100644
 --- a/netwerk/url-classifier/UrlClassifierFeatureEmailTrackingDataCollection.cpp
 +++ b/netwerk/url-classifier/UrlClassifierFeatureEmailTrackingDataCollection.cpp
 @@ -11,7 +11,6 @@
@@ -196759,7 +197279,16 @@ index 4725b4ba6494e71158a843a1d2a18918fc607563..6ed5d2b7cf19c349ff2c61afda5267cb
  #include "mozilla/net/UrlClassifierCommon.h"
  #include "nsIChannel.h"
  #include "nsIClassifiedChannel.h"
-@@ -211,13 +210,6 @@ UrlClassifierFeatureEmailTrackingDataCollection::ProcessChannel(
+@@ -202,22 +201,12 @@ UrlClassifierFeatureEmailTrackingDataCollection::ProcessChannel(
+     });
+   }
+ 
+-  bool isTopEmailWebApp = topWindowParent->DocumentPrincipal()->IsURIInList(
+-      *gEmailWebAppDomainsPref);
+-
+   uint32_t flags = UrlClassifierCommon::TablesToClassificationFlags(
+       aList, sClassificationData,
+       nsIClassifiedChannel::ClassificationFlags::CLASSIFIED_EMAILTRACKING);
  
    if (flags & nsIClassifiedChannel::ClassificationFlags::
                    CLASSIFIED_EMAILTRACKING_CONTENT) {
@@ -196773,7 +197302,7 @@ index 4725b4ba6494e71158a843a1d2a18918fc607563..6ed5d2b7cf19c349ff2c61afda5267cb
  
      // Notify the load event to record the content blocking log.
      //
-@@ -227,13 +219,6 @@ UrlClassifierFeatureEmailTrackingDataCollection::ProcessChannel(
+@@ -227,13 +216,6 @@ UrlClassifierFeatureEmailTrackingDataCollection::ProcessChannel(
          aChannel,
          nsIWebProgressListener::STATE_LOADED_EMAILTRACKING_LEVEL_2_CONTENT);
    } else {
@@ -197469,7 +197998,7 @@ index 29eec660b18503a9a2490303e70ab5c38465a077..00000000000000000000000000000000
 -      - dkeeler@mozilla.com
 -    expires: never
 diff --git a/security/manager/ssl/AppSignatureVerification.cpp b/security/manager/ssl/AppSignatureVerification.cpp
-index b437e556ae3015ffcc51aca62bbd2bc89c53d7cc..94e00259715acca46f13837b2e20c3d103b966c1 100644
+index b437e556ae3015ffcc51aca62bbd2bc89c53d7cc..163a4e6fb62bea73c20657a6c291a96a00f12756 100644
 --- a/security/manager/ssl/AppSignatureVerification.cpp
 +++ b/security/manager/ssl/AppSignatureVerification.cpp
 @@ -17,7 +17,6 @@
@@ -197480,15 +198009,30 @@ index b437e556ae3015ffcc51aca62bbd2bc89c53d7cc..94e00259715acca46f13837b2e20c3d1
  #include "mozpkix/pkix.h"
  #include "mozpkix/pkixnss.h"
  #include "mozpkix/pkixutil.h"
-@@ -1372,8 +1371,6 @@ nsresult OpenSignedAppFile(
-   bucket += aPolicy.ProcessPK7();
-   bucket += !pkcs7CertDER.IsEmpty();
-   bucket += pk7Verified;
+@@ -1358,23 +1357,6 @@ nsresult OpenSignedAppFile(
+     }
+   }
+ 
+-  // Bits 1 and 2
+-  // 00 = Didn't Process PKCS#7 signatures
+-  // 01 = Processed but no valid cert or signature
+-  // 10 = Processed and valid cert found, but addon didn't match manifest
+-  // 11 = Processed and valid.
+-  // Bits 3 and 4 are the same but for COSE.
+-  uint32_t bucket = 0;
+-  bucket += aPolicy.ProcessCOSE();
+-  bucket += !coseCertDER.IsEmpty();
+-  bucket += coseVerified;
+-  bucket <<= 2;
+-  bucket += aPolicy.ProcessPK7();
+-  bucket += !pkcs7CertDER.IsEmpty();
+-  bucket += pk7Verified;
 -  glean::security::addon_signature_verification_status.AccumulateSingleSample(
 -      bucket);
- 
+-
    if ((aPolicy.PK7Required() && !pk7Verified) ||
        (aPolicy.COSERequired() && !coseVerified)) {
+     return NS_ERROR_SIGNED_JAR_WRONG_SIGNATURE;
 diff --git a/security/manager/ssl/ContentSignatureVerifier.cpp b/security/manager/ssl/ContentSignatureVerifier.cpp
 index 520d0b66a709ba22f487d90a261e85f01301aa09..23cd39c00647a91f1aed3946ee132df3165f647f 100644
 --- a/security/manager/ssl/ContentSignatureVerifier.cpp
@@ -197572,7 +198116,7 @@ index b93ff9d1ae12655fa1a5a513f81c01b28018165a..49c9628086075f5409cbc4c3328ab3f8
    }
    ScopedCFType<CFDictionaryRef> dictionary(
 diff --git a/security/manager/ssl/NSSSocketControl.cpp b/security/manager/ssl/NSSSocketControl.cpp
-index 99e5be6555cb9dce886977a4894d02a14df532cd..37355f8df1eb6c6704522f01addc3857f9c90fbb 100644
+index 99e5be6555cb9dce886977a4894d02a14df532cd..269d22e80a566f1661debcac2c6444ecd6a06b69 100644
 --- a/security/manager/ssl/NSSSocketControl.cpp
 +++ b/security/manager/ssl/NSSSocketControl.cpp
 @@ -8,7 +8,6 @@
@@ -197583,17 +198127,27 @@ index 99e5be6555cb9dce886977a4894d02a14df532cd..37355f8df1eb6c6704522f01addc3857
  #include "nsISocketProvider.h"
  #include "nsNSSCallbacks.h"
  #include "nsNSSComponent.h"
-@@ -91,25 +90,20 @@ void NSSSocketControl::NoteTimeUntilReady() {
+@@ -48,7 +47,6 @@ NSSSocketControl::NSSSocketControl(
+       mKEAKeyBits(0),
+       mMACAlgorithmUsed(nsITLSSocketControl::SSL_MAC_UNKNOWN),
+       mProviderTlsFlags(providerTlsFlags),
+-      mSocketCreationTimestamp(TimeStamp::Now()),
+       mPlaintextBytesRead(0),
+       mClaimed(!(providerFlags & nsISocketProvider::IS_SPECULATIVE_CONNECTION)),
+       mClientAuthCertificateRequest(Nothing()),
+@@ -89,27 +87,15 @@ void NSSSocketControl::NoteTimeUntilReady() {
+   }
+   mNotedTimeUntilReady = true;
  
-   auto duration = TimeStamp::Now() - mSocketCreationTimestamp;
-   if (!(mProviderFlags & nsISocketProvider::IS_RETRY)) {
+-  auto duration = TimeStamp::Now() - mSocketCreationTimestamp;
+-  if (!(mProviderFlags & nsISocketProvider::IS_RETRY)) {
 -    glean::ssl::time_until_ready_first_try.AccumulateRawDuration(duration);
-   }
- 
-   if (mProviderFlags & nsISocketProvider::BE_CONSERVATIVE) {
+-  }
+-
+-  if (mProviderFlags & nsISocketProvider::BE_CONSERVATIVE) {
 -    glean::ssl::time_until_ready_conservative.AccumulateRawDuration(duration);
-   }
- 
+-  }
+-
    switch (GetEchExtensionStatus()) {
      case EchExtensionStatus::kGREASE:
 -      glean::ssl::time_until_ready_ech_grease.AccumulateRawDuration(duration);
@@ -197609,7 +198163,7 @@ index 99e5be6555cb9dce886977a4894d02a14df532cd..37355f8df1eb6c6704522f01addc3857
  
    MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
            ("[%p] NSSSocketControl::NoteTimeUntilReady\n", mFd));
-@@ -120,24 +114,10 @@ void NSSSocketControl::SetHandshakeCompleted() {
+@@ -120,24 +106,10 @@ void NSSSocketControl::SetHandshakeCompleted() {
    if (!mHandshakeCompleted) {
      // This will include TCP and proxy tunnel wait time
      if (mKeaGroupName.isSome()) {
@@ -197634,7 +198188,7 @@ index 99e5be6555cb9dce886977a4894d02a14df532cd..37355f8df1eb6c6704522f01addc3857
    }
  
    // Remove the plaintext layer as it is not needed anymore.
-@@ -425,8 +405,6 @@ void NSSSocketControl::SetCertVerificationResult(PRErrorCode errorCode) {
+@@ -425,8 +397,6 @@ void NSSSocketControl::SetCertVerificationResult(PRErrorCode errorCode) {
    }
  
    if (mPlaintextBytesRead && !errorCode) {
@@ -197643,7 +198197,7 @@ index 99e5be6555cb9dce886977a4894d02a14df532cd..37355f8df1eb6c6704522f01addc3857
    }
  
    MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
-@@ -484,7 +462,6 @@ void NSSSocketControl::ClientAuthCertificateSelected(
+@@ -484,7 +454,6 @@ void NSSSocketControl::ClientAuthCertificateSelected(
    bool sendingClientAuthCert = cert && key;
    if (sendingClientAuthCert) {
      mSentClientCert = true;
@@ -197745,191 +198299,2104 @@ index 9584ef7af2b1a2416ef52692be910b55475c4793..2a708dd3fadd92ac8e635e128fd4e578
  
  #if defined(NIGHTLY_BUILD) && !defined(MOZ_NO_SMART_CARDS)
 diff --git a/security/manager/ssl/SSLServerCertVerification.cpp b/security/manager/ssl/SSLServerCertVerification.cpp
-index e93f975d3226f92343650d7a033f86e8de4d3a21..bca65088c2f16079a10543eed78b81dd23accdfd 100644
+index e93f975d3226f92343650d7a033f86e8de4d3a21..6cf72137a801c08f1a7e249506fde9d7afb5e05b 100644
 --- a/security/manager/ssl/SSLServerCertVerification.cpp
 +++ b/security/manager/ssl/SSLServerCertVerification.cpp
-@@ -107,7 +107,6 @@
- #include "mozilla/RefPtr.h"
- #include "mozilla/StaticPrefs_security.h"
- #include "mozilla/UniquePtr.h"
+@@ -1,1184 +1,910 @@
+-/*
+- * This Source Code Form is subject to the terms of the Mozilla Public
+- * License, v. 2.0. If a copy of the MPL was not distributed with this
+- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+-
+-// During certificate authentication, we call CertVerifier::VerifySSLServerCert.
+-// This function may make zero or more HTTP requests (e.g. to gather revocation
+-// information). Our fetching logic for these requests processes them on the
+-// socket transport service thread.
+-//
+-// Because the connection for which we are verifying the certificate is
+-// happening on the socket transport thread, if our cert auth hook were to call
+-// VerifySSLServerCert directly, there would be a deadlock: VerifySSLServerCert
+-// would cause an event to be asynchronously posted to the socket transport
+-// thread, and then it would block the socket transport thread waiting to be
+-// notified of the HTTP response. However, the HTTP request would never actually
+-// be processed because the socket transport thread would be blocked and so it
+-// wouldn't be able process HTTP requests.
+-//
+-// Consequently, when we are asked to verify a certificate, we must always call
+-// VerifySSLServerCert on another thread. To accomplish this, our auth cert hook
+-// dispatches a SSLServerCertVerificationJob to a pool of background threads,
+-// and then immediately returns SECWouldBlock to libssl. These jobs are where
+-// VerifySSLServerCert is actually called.
+-//
+-// When our auth cert hook returns SECWouldBlock, libssl will carry on the
+-// handshake while we validate the certificate. This will free up the socket
+-// transport thread so that HTTP requests--including the OCSP requests needed
+-// for cert verification as mentioned above--can be processed.
+-//
+-// Once VerifySSLServerCert returns, the cert verification job dispatches a
+-// SSLServerCertVerificationResult to the socket transport thread; the
+-// SSLServerCertVerificationResult will notify libssl that the certificate
+-// authentication is complete. Once libssl is notified that the authentication
+-// is complete, it will continue the TLS handshake (if it hasn't already
+-// finished) and it will begin allowing us to send/receive data on the
+-// connection.
+-//
+-// Timeline of events (for connections managed by the socket transport service):
+-//
+-//    * libssl calls SSLServerCertVerificationJob::Dispatch on the socket
+-//      transport thread.
+-//    * SSLServerCertVerificationJob::Dispatch queues a job
+-//      (instance of SSLServerCertVerificationJob) to its background thread
+-//      pool and returns.
+-//    * One of the background threads calls CertVerifier::VerifySSLServerCert,
+-//      which may enqueue some HTTP request(s) onto the socket transport thread,
+-//      and then blocks that background thread waiting for the responses and/or
+-//      timeouts or errors for those requests.
+-//    * Once those HTTP responses have all come back or failed, the
+-//      CertVerifier::VerifySSLServerCert function returns a result indicating
+-//      that the validation succeeded or failed.
+-//    * If the validation succeeded, then a SSLServerCertVerificationResult
+-//      event is posted to the socket transport thread, and the cert
+-//      verification thread becomes free to verify other certificates.
+-//    * Otherwise, we do cert override processing to see if the validation
+-//      error can be convered by override rules. The result of this processing
+-//      is similarly dispatched in a SSLServerCertVerificationResult.
+-//    * The SSLServerCertVerificationResult event will either wake up the
+-//      socket (using SSL_AuthCertificateComplete) if validation succeeded or
+-//      there was an error override, or it will set an error flag so that the
+-//      next I/O operation on the socket will fail, causing the socket transport
+-//      thread to close the connection.
+-//
+-// SSLServerCertVerificationResult must be dispatched to the socket transport
+-// thread because we must only call SSL_* functions on the socket transport
+-// thread since they may do I/O, because many parts of NSSSocketControl and the
+-// PSM NSS I/O layer are not thread-safe, and because we need the event to
+-// interrupt the PR_Poll that may waiting for I/O on the socket for which we
+-// are validating the cert.
+-//
+-// When socket process is enabled, libssl is running on socket process. To
+-// perform certificate authentication with CertVerifier, we have to send all
+-// needed information to parent process and send the result back to socket
+-// process via IPC. The workflow is described below.
+-// 1. In AuthCertificateHookInternal(), we call RemoteProcessCertVerification()
+-//    instead of SSLServerCertVerificationJob::Dispatch when we are on socket
+-//    process.
+-// 2. In RemoteProcessCertVerification(), PVerifySSLServerCert actors will be
+-//    created on IPDL background thread for carrying needed information via IPC.
+-// 3. On parent process, VerifySSLServerCertParent is created and it calls
+-//    SSLServerCertVerificationJob::Dispatch for doing certificate verification
+-//    on one of CertVerificationThreads.
+-// 4. When validation is done, OnVerifiedSSLServerCertSuccess IPC message is
+-//    sent through the IPDL background thread when
+-//    CertVerifier::VerifySSLServerCert returns Success. Otherwise,
+-//    OnVerifiedSSLServerCertFailure is sent.
+-// 5. After setp 4, PVerifySSLServerCert actors will be released. The
+-//    verification result will be dispatched via
+-//    SSLServerCertVerificationResult.
+-
+-#include "SSLServerCertVerification.h"
+-
+-#include <cstring>
+-
+-#include "CertVerifier.h"
+-#include "CryptoTask.h"
+-#include "ExtendedValidation.h"
+-#include "NSSCertDBTrustDomain.h"
+-#include "NSSSocketControl.h"
+-#include "RootCertificateTelemetryUtils.h"
+-#include "ScopedNSSTypes.h"
+-#include "SharedCertVerifier.h"
+-#include "VerifySSLServerCertChild.h"
+-#include "cert.h"
+-#include "mozilla/Assertions.h"
+-#include "mozilla/RefPtr.h"
+-#include "mozilla/StaticPrefs_security.h"
+-#include "mozilla/UniquePtr.h"
 -#include "mozilla/glean/SecurityManagerSslMetrics.h"
- #include "mozpkix/pkix.h"
- #include "mozpkix/pkixcheck.h"
- #include "mozpkix/pkixnss.h"
-@@ -447,8 +446,6 @@ void GatherTelemetryForSingleSCT(const ct::VerifiedSCT& verifiedSct) {
-       verificationStatus = 5;
-       break;
-   }
+-#include "mozpkix/pkix.h"
+-#include "mozpkix/pkixcheck.h"
+-#include "mozpkix/pkixnss.h"
+-#include "mozpkix/pkixutil.h"
+-#include "nsComponentManagerUtils.h"
+-#include "nsContentUtils.h"
+-#include "nsICertOverrideService.h"
+-#include "nsIPublicKeyPinningService.h"
+-#include "nsISiteSecurityService.h"
+-#include "nsISocketProvider.h"
+-#include "nsNSSCertificate.h"
+-#include "nsNSSComponent.h"
+-#include "nsNSSIOLayer.h"
+-#include "nsNetUtil.h"
+-#include "nsServiceManagerUtils.h"
+-#include "nsString.h"
+-#include "nsThreadPool.h"
+-#include "nsURLHelper.h"
+-#include "nsXPCOMCIDInternal.h"
+-#include "secerr.h"
+-#include "secport.h"
+-#include "ssl.h"
+-#include "sslerr.h"
+-#include "sslexp.h"
+-
+-extern mozilla::LazyLogModule gPIPNSSLog;
+-
+-using namespace mozilla::pkix;
+-
+-namespace mozilla {
+-namespace psm {
+-
+-// do not use a nsCOMPtr to avoid static initializer/destructor
+-nsIThreadPool* gCertVerificationThreadPool = nullptr;
+-
+-// Called when the socket transport thread starts, to initialize the SSL cert
+-// verification thread pool. By tying the thread pool startup/shutdown directly
+-// to the STS thread's lifetime, we ensure that they are *always* available for
+-// SSL connections and that there are no races during startup and especially
+-// shutdown. (Previously, we have had multiple problems with races in PSM
+-// background threads, and the race-prevention/shutdown logic used there is
+-// brittle. Since this service is critical to things like downloading updates,
+-// we take no chances.) Also, by doing things this way, we avoid the need for
+-// locks, since gCertVerificationThreadPool is only ever accessed on the socket
+-// transport thread.
+-void InitializeSSLServerCertVerificationThreads() {
+-  // TODO: tuning, make parameters preferences
+-  gCertVerificationThreadPool = new nsThreadPool();
+-  NS_ADDREF(gCertVerificationThreadPool);
+-
+-  (void)gCertVerificationThreadPool->SetThreadLimit(5);
+-  (void)gCertVerificationThreadPool->SetIdleThreadLimit(1);
+-  (void)gCertVerificationThreadPool->SetIdleThreadMaximumTimeout(30 * 1000);
+-  (void)gCertVerificationThreadPool->SetIdleThreadGraceTimeout(500);
+-  (void)gCertVerificationThreadPool->SetName("SSL Cert"_ns);
+-}
+-
+-// Called when the socket transport thread finishes, to destroy the thread
+-// pool. Since the socket transport service has stopped processing events, it
+-// will not attempt any more SSL I/O operations, so it is clearly safe to shut
+-// down the SSL cert verification infrastructure. Also, the STS will not
+-// dispatch many SSL verification result events at this point, so any pending
+-// cert verifications will (correctly) fail at the point they are dispatched.
+-//
+-// The other shutdown race condition that is possible is a race condition with
+-// shutdown of the nsNSSComponent service. We use the
+-// nsNSSShutdownPreventionLock where needed (not here) to prevent that.
+-void StopSSLServerCertVerificationThreads() {
+-  if (gCertVerificationThreadPool) {
+-    gCertVerificationThreadPool->Shutdown();
+-    NS_RELEASE(gCertVerificationThreadPool);
+-  }
+-}
+-
+-// A probe value of 1 means "no error".
+-uint32_t MapOverridableErrorToProbeValue(PRErrorCode errorCode) {
+-  switch (errorCode) {
+-    case SEC_ERROR_UNKNOWN_ISSUER:
+-      return 2;
+-    case SEC_ERROR_CA_CERT_INVALID:
+-      return 3;
+-    case SEC_ERROR_UNTRUSTED_ISSUER:
+-      return 4;
+-    case SEC_ERROR_EXPIRED_ISSUER_CERTIFICATE:
+-      return 5;
+-    case SEC_ERROR_UNTRUSTED_CERT:
+-      return 6;
+-    case SEC_ERROR_INADEQUATE_KEY_USAGE:
+-      return 7;
+-    case SEC_ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED:
+-      return 8;
+-    case SSL_ERROR_BAD_CERT_DOMAIN:
+-      return 9;
+-    case SEC_ERROR_EXPIRED_CERTIFICATE:
+-      return 10;
+-    case mozilla::pkix::MOZILLA_PKIX_ERROR_CA_CERT_USED_AS_END_ENTITY:
+-      return 11;
+-    case mozilla::pkix::MOZILLA_PKIX_ERROR_V1_CERT_USED_AS_CA:
+-      return 12;
+-    case mozilla::pkix::MOZILLA_PKIX_ERROR_INADEQUATE_KEY_SIZE:
+-      return 13;
+-    case mozilla::pkix::MOZILLA_PKIX_ERROR_NOT_YET_VALID_CERTIFICATE:
+-      return 14;
+-    case mozilla::pkix::MOZILLA_PKIX_ERROR_NOT_YET_VALID_ISSUER_CERTIFICATE:
+-      return 15;
+-    case SEC_ERROR_INVALID_TIME:
+-      return 16;
+-    case mozilla::pkix::MOZILLA_PKIX_ERROR_EMPTY_ISSUER_NAME:
+-      return 17;
+-    // mozilla::pkix::MOZILLA_PKIX_ERROR_ADDITIONAL_POLICY_CONSTRAINT_FAILED was
+-    // 18
+-    case mozilla::pkix::MOZILLA_PKIX_ERROR_SELF_SIGNED_CERT:
+-      return 19;
+-    case mozilla::pkix::MOZILLA_PKIX_ERROR_MITM_DETECTED:
+-      return 20;
+-    case mozilla::pkix::
+-        MOZILLA_PKIX_ERROR_INSUFFICIENT_CERTIFICATE_TRANSPARENCY:
+-      return 21;
+-  }
+-  NS_WARNING(
+-      "Unknown certificate error code. Does MapOverridableErrorToProbeValue "
+-      "handle everything in CategorizeCertificateError?");
+-  return 0;
+-}
+-
+-static uint32_t MapCertErrorToProbeValue(PRErrorCode errorCode) {
+-  uint32_t probeValue;
+-  switch (errorCode) {
+-    // see security/pkix/include/pkix/Result.h
+-#define MOZILLA_PKIX_MAP(name, value, nss_name) \
+-  case nss_name:                                \
+-    probeValue = value;                         \
+-    break;
+-    MOZILLA_PKIX_MAP_LIST
+-#undef MOZILLA_PKIX_MAP
+-    default:
+-      return 0;
+-  }
+-
+-  // Since FATAL_ERROR_FLAG is 0x800, fatal error values are much larger than
+-  // non-fatal error values. To conserve space, we remap these so they start at
+-  // (decimal) 90 instead of 0x800. Currently there are ~50 non-fatal errors
+-  // mozilla::pkix might return, so saving space for 90 should be sufficient
+-  // (similarly, there are 4 fatal errors, so saving space for 10 should also
+-  // be sufficient).
+-  static_assert(
+-      FATAL_ERROR_FLAG == 0x800,
+-      "mozilla::pkix::FATAL_ERROR_FLAG is not what we were expecting");
+-  if (probeValue & FATAL_ERROR_FLAG) {
+-    probeValue ^= FATAL_ERROR_FLAG;
+-    probeValue += 90;
+-  }
+-  return probeValue;
+-}
+-
+-// If the given PRErrorCode is an overridable certificate error, return which
+-// category (trust, time, domain mismatch) it falls in. If it is not
+-// overridable, return Nothing.
+-Maybe<nsITransportSecurityInfo::OverridableErrorCategory>
+-CategorizeCertificateError(PRErrorCode certificateError) {
+-  switch (certificateError) {
+-    case SEC_ERROR_CA_CERT_INVALID:
+-    case SEC_ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED:
+-    case SEC_ERROR_EXPIRED_ISSUER_CERTIFICATE:
+-    case SEC_ERROR_UNKNOWN_ISSUER:
+-    case mozilla::pkix::MOZILLA_PKIX_ERROR_CA_CERT_USED_AS_END_ENTITY:
+-    case mozilla::pkix::MOZILLA_PKIX_ERROR_EMPTY_ISSUER_NAME:
+-    case mozilla::pkix::MOZILLA_PKIX_ERROR_INADEQUATE_KEY_SIZE:
+-    case mozilla::pkix::
+-        MOZILLA_PKIX_ERROR_INSUFFICIENT_CERTIFICATE_TRANSPARENCY:
+-    case mozilla::pkix::MOZILLA_PKIX_ERROR_MITM_DETECTED:
+-    case mozilla::pkix::MOZILLA_PKIX_ERROR_NOT_YET_VALID_ISSUER_CERTIFICATE:
+-    case mozilla::pkix::MOZILLA_PKIX_ERROR_SELF_SIGNED_CERT:
+-    case mozilla::pkix::MOZILLA_PKIX_ERROR_V1_CERT_USED_AS_CA:
+-      return Some(
+-          nsITransportSecurityInfo::OverridableErrorCategory::ERROR_TRUST);
+-
+-    case SSL_ERROR_BAD_CERT_DOMAIN:
+-      return Some(
+-          nsITransportSecurityInfo::OverridableErrorCategory::ERROR_DOMAIN);
+-
+-    case SEC_ERROR_EXPIRED_CERTIFICATE:
+-    case SEC_ERROR_INVALID_TIME:
+-    case mozilla::pkix::MOZILLA_PKIX_ERROR_NOT_YET_VALID_CERTIFICATE:
+-      return Some(
+-          nsITransportSecurityInfo::OverridableErrorCategory::ERROR_TIME);
+-
+-    default:
+-      break;
+-  }
+-  return Nothing();
+-}
+-
+-// Helper function to determine if overrides are allowed for this host.
+-// Overrides are not allowed for known HSTS hosts or hosts with pinning
+-// information. However, IP addresses can never be HSTS hosts and don't have
+-// pinning information.
+-static nsresult OverrideAllowedForHost(
+-    uint64_t aPtrForLog, const nsACString& aHostname,
+-    const OriginAttributes& aOriginAttributes, /*out*/ bool& aOverrideAllowed) {
+-  aOverrideAllowed = false;
+-
+-  // If this is an IP address, overrides are allowed, because an IP address is
+-  // never an HSTS host. nsISiteSecurityService takes this into account
+-  // already, but the real problem here is that calling NS_NewURI with an IPv6
+-  // address fails. We do this to avoid that. A more comprehensive fix would be
+-  // to have Necko provide an nsIURI to PSM and to use that here (and
+-  // everywhere). However, that would be a wide-spanning change.
+-  if (net_IsValidIPv6Addr(aHostname)) {
+-    aOverrideAllowed = true;
+-    return NS_OK;
+-  }
+-
+-  // If this is an HTTP Strict Transport Security host or a pinned host and the
+-  // certificate is bad, don't allow overrides (RFC 6797 section 12.1).
+-  bool strictTransportSecurityEnabled = false;
+-  bool isStaticallyPinned = false;
+-  nsCOMPtr<nsISiteSecurityService> sss(do_GetService(NS_SSSERVICE_CONTRACTID));
+-  if (!sss) {
+-    MOZ_LOG(
+-        gPIPNSSLog, LogLevel::Debug,
+-        ("[0x%" PRIx64 "] Couldn't get nsISiteSecurityService to check HSTS",
+-         aPtrForLog));
+-    return NS_ERROR_FAILURE;
+-  }
+-
+-  nsCOMPtr<nsIURI> uri;
+-  nsresult rv = NS_NewURI(getter_AddRefs(uri), "https://"_ns + aHostname);
+-  if (NS_FAILED(rv)) {
+-    MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
+-            ("[0x%" PRIx64 "] Creating new URI failed", aPtrForLog));
+-    return rv;
+-  }
+-
+-  rv =
+-      sss->IsSecureURI(uri, aOriginAttributes, &strictTransportSecurityEnabled);
+-  if (NS_FAILED(rv)) {
+-    MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
+-            ("[0x%" PRIx64 "] checking for HSTS failed", aPtrForLog));
+-    return rv;
+-  }
+-
+-  nsCOMPtr<nsIPublicKeyPinningService> pkps =
+-      do_GetService(NS_PKPSERVICE_CONTRACTID, &rv);
+-  if (!pkps) {
+-    MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
+-            ("[0x%" PRIx64
+-             "] Couldn't get nsIPublicKeyPinningService to check pinning",
+-             aPtrForLog));
+-    return NS_ERROR_FAILURE;
+-  }
+-  rv = pkps->HostHasPins(uri, &isStaticallyPinned);
+-  if (NS_FAILED(rv)) {
+-    MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
+-            ("[0x%" PRIx64 "] checking for static pin failed", aPtrForLog));
+-    return rv;
+-  }
+-
+-  aOverrideAllowed = !strictTransportSecurityEnabled && !isStaticallyPinned;
+-  return NS_OK;
+-}
+-
+-// This function assumes that we will only use the SPDY connection coalescing
+-// feature on connections where we have negotiated SPDY using NPN. If we ever
+-// talk SPDY without having negotiated it with SPDY, this code will give wrong
+-// and perhaps unsafe results.
+-//
+-// Returns SECSuccess on the initial handshake of all connections, on
+-// renegotiations for any connections where we did not negotiate SPDY, or on any
+-// SPDY connection where the server's certificate did not change.
+-//
+-// Prohibit changing the server cert only if we negotiated SPDY,
+-// in order to support SPDY's cross-origin connection pooling.
+-static SECStatus BlockServerCertChangeForSpdy(
+-    NSSSocketControl* socketControl, const UniqueCERTCertificate& serverCert) {
+-  if (!socketControl->IsHandshakeCompleted()) {
+-    // first handshake on this connection, not a
+-    // renegotiation.
+-    return SECSuccess;
+-  }
+-
+-  // Filter out sockets that did not neogtiate SPDY via NPN
+-  nsCOMPtr<nsITransportSecurityInfo> securityInfo;
+-  nsresult rv = socketControl->GetSecurityInfo(getter_AddRefs(securityInfo));
+-  MOZ_ASSERT(NS_SUCCEEDED(rv), "GetSecurityInfo() failed during renegotiation");
+-  if (NS_FAILED(rv) || !securityInfo) {
+-    PR_SetError(SEC_ERROR_LIBRARY_FAILURE, 0);
+-    return SECFailure;
+-  }
+-  nsAutoCString negotiatedNPN;
+-  rv = securityInfo->GetNegotiatedNPN(negotiatedNPN);
+-  MOZ_ASSERT(NS_SUCCEEDED(rv),
+-             "GetNegotiatedNPN() failed during renegotiation");
+-
+-  if (NS_SUCCEEDED(rv) && !StringBeginsWith(negotiatedNPN, "spdy/"_ns)) {
+-    return SECSuccess;
+-  }
+-  // If GetNegotiatedNPN() failed we will assume spdy for safety's safe
+-  if (NS_FAILED(rv)) {
+-    MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
+-            ("BlockServerCertChangeForSpdy failed GetNegotiatedNPN() call."
+-             " Assuming spdy."));
+-  }
+-
+-  // Check to see if the cert has actually changed
+-  nsCOMPtr<nsIX509Cert> cert(socketControl->GetServerCert());
+-  if (!cert) {
+-    PR_SetError(SEC_ERROR_LIBRARY_FAILURE, 0);
+-    return SECFailure;
+-  }
+-  nsTArray<uint8_t> certDER;
+-  if (NS_FAILED(cert->GetRawDER(certDER))) {
+-    PR_SetError(SEC_ERROR_LIBRARY_FAILURE, 0);
+-    return SECFailure;
+-  }
+-  if (certDER.Length() == serverCert->derCert.len &&
+-      memcmp(certDER.Elements(), serverCert->derCert.data, certDER.Length()) ==
+-          0) {
+-    return SECSuccess;
+-  }
+-
+-  // Report an error - changed cert is confirmed
+-  MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
+-          ("SPDY refused to allow new cert during renegotiation"));
+-  PR_SetError(SSL_ERROR_RENEGOTIATION_NOT_ALLOWED, 0);
+-  return SECFailure;
+-}
+-
+-void GatherTelemetryForSingleSCT(const ct::VerifiedSCT& verifiedSct) {
+-  // See scts_verification_status in metrics.yaml.
+-  uint32_t verificationStatus = 0;
+-  switch (verifiedSct.logState) {
+-    case ct::CTLogState::Admissible:
+-      verificationStatus = 1;
+-      break;
+-    case ct::CTLogState::Retired:
+-      verificationStatus = 5;
+-      break;
+-  }
 -  glean::ssl::scts_verification_status.AccumulateSingleSample(
 -      verificationStatus);
- }
- 
- void GatherCertificateTransparencyTelemetry(
-@@ -465,30 +462,22 @@ void GatherCertificateTransparencyTelemetry(
- 
-   // See scts_verification_status in metrics.yaml.
-   for (size_t i = 0; i < info.verifyResult.decodingErrors; ++i) {
+-}
+-
+-void GatherCertificateTransparencyTelemetry(
+-    const nsTArray<uint8_t>& rootCert,
+-    const CertificateTransparencyInfo& info) {
+-  if (!info.enabled) {
+-    // No telemetry is gathered when CT is disabled.
+-    return;
+-  }
+-
+-  for (const ct::VerifiedSCT& sct : info.verifyResult.verifiedScts) {
+-    GatherTelemetryForSingleSCT(sct);
+-  }
+-
+-  // See scts_verification_status in metrics.yaml.
+-  for (size_t i = 0; i < info.verifyResult.decodingErrors; ++i) {
 -    glean::ssl::scts_verification_status.AccumulateSingleSample(0);
-   }
-   for (size_t i = 0; i < info.verifyResult.sctsFromUnknownLogs; ++i) {
+-  }
+-  for (size_t i = 0; i < info.verifyResult.sctsFromUnknownLogs; ++i) {
 -    glean::ssl::scts_verification_status.AccumulateSingleSample(2);
-   }
-   for (size_t i = 0; i < info.verifyResult.sctsWithInvalidSignatures; ++i) {
+-  }
+-  for (size_t i = 0; i < info.verifyResult.sctsWithInvalidSignatures; ++i) {
 -    glean::ssl::scts_verification_status.AccumulateSingleSample(3);
-   }
-   for (size_t i = 0; i < info.verifyResult.sctsWithInvalidTimestamps; ++i) {
+-  }
+-  for (size_t i = 0; i < info.verifyResult.sctsWithInvalidTimestamps; ++i) {
 -    glean::ssl::scts_verification_status.AccumulateSingleSample(4);
-   }
-   for (size_t i = 0; i < info.verifyResult.sctsWithDistrustedTimestamps; ++i) {
+-  }
+-  for (size_t i = 0; i < info.verifyResult.sctsWithDistrustedTimestamps; ++i) {
 -    glean::ssl::scts_verification_status.AccumulateSingleSample(6);
-   }
- 
-   // See scts_origin in metrics.yaml.
-   for (size_t i = 0; i < info.verifyResult.embeddedSCTs; ++i) {
+-  }
+-
+-  // See scts_origin in metrics.yaml.
+-  for (size_t i = 0; i < info.verifyResult.embeddedSCTs; ++i) {
 -    glean::ssl::scts_origin.AccumulateSingleSample(1);
-   }
-   for (size_t i = 0; i < info.verifyResult.sctsFromTLSHandshake; ++i) {
+-  }
+-  for (size_t i = 0; i < info.verifyResult.sctsFromTLSHandshake; ++i) {
 -    glean::ssl::scts_origin.AccumulateSingleSample(2);
-   }
-   for (size_t i = 0; i < info.verifyResult.sctsFromOCSP; ++i) {
+-  }
+-  for (size_t i = 0; i < info.verifyResult.sctsFromOCSP; ++i) {
 -    glean::ssl::scts_origin.AccumulateSingleSample(3);
-   }
- 
-   // Handle the histogram of SCTs counts.
-@@ -496,7 +485,6 @@ void GatherCertificateTransparencyTelemetry(
-       static_cast<uint32_t>(info.verifyResult.verifiedScts.size());
-   // Note that sctsCount can also be 0 in case we've received SCT binary data,
-   // but it failed to parse (e.g. due to unsupported CT protocol version).
+-  }
+-
+-  // Handle the histogram of SCTs counts.
+-  uint32_t sctsCount =
+-      static_cast<uint32_t>(info.verifyResult.verifiedScts.size());
+-  // Note that sctsCount can also be 0 in case we've received SCT binary data,
+-  // but it failed to parse (e.g. due to unsupported CT protocol version).
 -  glean::ssl::scts_per_connection.AccumulateSingleSample(sctsCount);
- 
-   uint32_t sctsFromTiledLogs = 0;
-   for (const auto& verifiedSCT : info.verifyResult.verifiedScts) {
-@@ -504,16 +492,12 @@ void GatherCertificateTransparencyTelemetry(
-       sctsFromTiledLogs++;
-     }
-   }
+-
+-  uint32_t sctsFromTiledLogs = 0;
+-  for (const auto& verifiedSCT : info.verifyResult.verifiedScts) {
+-    if (verifiedSCT.logFormat == ct::CTLogFormat::Tiled) {
+-      sctsFromTiledLogs++;
+-    }
+-  }
 -  glean::ssl::scts_from_tiled_logs_per_connection.AccumulateSingleSample(
 -      sctsFromTiledLogs);
- 
-   // Report CT Policy compliance by CA.
-   if (info.policyCompliance.isSome() &&
-       *info.policyCompliance != ct::CTPolicyCompliance::Compliant) {
-     int32_t binId = RootCABinNumber(rootCert);
-     if (binId != ROOT_CERTIFICATE_HASH_FAILURE) {
+-
+-  // Report CT Policy compliance by CA.
+-  if (info.policyCompliance.isSome() &&
+-      *info.policyCompliance != ct::CTPolicyCompliance::Compliant) {
+-    int32_t binId = RootCABinNumber(rootCert);
+-    if (binId != ROOT_CERTIFICATE_HASH_FAILURE) {
 -      glean::ssl::ct_policy_non_compliant_connections_by_ca_2
 -          .AccumulateSingleSample(binId);
-     }
-   }
- }
-@@ -532,42 +516,24 @@ static void CollectCertTelemetry(
-   uint32_t evStatus = (aCertVerificationResult != Success) ? 0  // 0 = Failure
-                       : (aEVStatus != EVStatus::EV)        ? 1  // 1 = DV
-                                                            : 2;        // 2 = EV
+-    }
+-  }
+-}
+-
+-// This function collects telemetry about certs. It will be called on one of
+-// CertVerificationThread. When the socket process is used this will be called
+-// on the parent process.
+-static void CollectCertTelemetry(
+-    mozilla::pkix::Result aCertVerificationResult, EVStatus aEVStatus,
+-    CertVerifier::OCSPStaplingStatus aOcspStaplingStatus,
+-    KeySizeStatus aKeySizeStatus,
+-    const PinningTelemetryInfo& aPinningTelemetryInfo,
+-    const nsTArray<nsTArray<uint8_t>>& aBuiltCertChain,
+-    const CertificateTransparencyInfo& aCertificateTransparencyInfo,
+-    const IssuerSources& issuerSources) {
+-  uint32_t evStatus = (aCertVerificationResult != Success) ? 0  // 0 = Failure
+-                      : (aEVStatus != EVStatus::EV)        ? 1  // 1 = DV
+-                                                           : 2;        // 2 = EV
 -  glean::cert::ev_status.AccumulateSingleSample(evStatus);
- 
-   if (aOcspStaplingStatus != CertVerifier::OCSP_STAPLING_NEVER_CHECKED) {
+-
+-  if (aOcspStaplingStatus != CertVerifier::OCSP_STAPLING_NEVER_CHECKED) {
 -    glean::ssl::ocsp_stapling.AccumulateSingleSample(aOcspStaplingStatus);
-   }
- 
-   if (aKeySizeStatus != KeySizeStatus::NeverChecked) {
+-  }
+-
+-  if (aKeySizeStatus != KeySizeStatus::NeverChecked) {
 -    glean::cert::chain_key_size_status.AccumulateSingleSample(
 -        static_cast<uint32_t>(aKeySizeStatus));
-   }
- 
-   if (aPinningTelemetryInfo.accumulateForRoot) {
+-  }
+-
+-  if (aPinningTelemetryInfo.accumulateForRoot) {
 -    glean::cert_pinning::failures_by_ca_2.AccumulateSingleSample(
 -        aPinningTelemetryInfo.rootBucket);
-   }
- 
-   if (aPinningTelemetryInfo.accumulateResult) {
-     if (aPinningTelemetryInfo.isMoz) {
-       if (aPinningTelemetryInfo.testMode) {
+-  }
+-
+-  if (aPinningTelemetryInfo.accumulateResult) {
+-    if (aPinningTelemetryInfo.isMoz) {
+-      if (aPinningTelemetryInfo.testMode) {
 -        glean::cert_pinning::moz_test_results_by_host.AccumulateSingleSample(
 -            aPinningTelemetryInfo.certPinningResultBucket);
-       } else {
+-      } else {
 -        glean::cert_pinning::moz_results_by_host.AccumulateSingleSample(
 -            aPinningTelemetryInfo.certPinningResultBucket);
-       }
-     } else {
-       if (aPinningTelemetryInfo.testMode) {
+-      }
+-    } else {
+-      if (aPinningTelemetryInfo.testMode) {
 -        glean::cert_pinning::test_results
 -            .EnumGet(static_cast<glean::cert_pinning::TestResultsLabel>(
 -                aPinningTelemetryInfo.certPinningResultBucket))
 -            .Add();
-       } else {
+-      } else {
 -        glean::cert_pinning::results
 -            .EnumGet(static_cast<glean::cert_pinning::ResultsLabel>(
 -                aPinningTelemetryInfo.certPinningResultBucket))
 -            .Add();
-       }
-     }
-   }
-@@ -576,29 +542,17 @@ static void CollectCertTelemetry(
-     const nsTArray<uint8_t>& rootCert = aBuiltCertChain.LastElement();
-     int32_t binId = RootCABinNumber(rootCert);
-     if (binId != ROOT_CERTIFICATE_HASH_FAILURE) {
+-      }
+-    }
+-  }
+-
+-  if (aCertVerificationResult == Success && aBuiltCertChain.Length() > 0) {
+-    const nsTArray<uint8_t>& rootCert = aBuiltCertChain.LastElement();
+-    int32_t binId = RootCABinNumber(rootCert);
+-    if (binId != ROOT_CERTIFICATE_HASH_FAILURE) {
 -      glean::cert::validation_success_by_ca_2.AccumulateSingleSample(binId);
-     }
- 
+-    }
+-
 -    mozilla::glean::tls::certificate_verifications.Add(1);
-     if (issuerSources.contains(IssuerSource::TLSHandshake)) {
+-    if (issuerSources.contains(IssuerSource::TLSHandshake)) {
 -      mozilla::glean::verification_used_cert_from::tls_handshake.AddToNumerator(
 -          1);
-     }
-     if (issuerSources.contains(IssuerSource::PreloadedIntermediates)) {
+-    }
+-    if (issuerSources.contains(IssuerSource::PreloadedIntermediates)) {
 -      mozilla::glean::verification_used_cert_from::preloaded_intermediates
 -          .AddToNumerator(1);
-     }
-     if (issuerSources.contains(IssuerSource::ThirdPartyCertificates)) {
+-    }
+-    if (issuerSources.contains(IssuerSource::ThirdPartyCertificates)) {
 -      mozilla::glean::verification_used_cert_from::third_party_certificates
 -          .AddToNumerator(1);
-     }
-     if (issuerSources.contains(IssuerSource::NSSCertDB)) {
+-    }
+-    if (issuerSources.contains(IssuerSource::NSSCertDB)) {
 -      mozilla::glean::verification_used_cert_from::nss_cert_db.AddToNumerator(
 -          1);
-     }
-     if (issuerSources.contains(IssuerSource::BuiltInRootsModule)) {
+-    }
+-    if (issuerSources.contains(IssuerSource::BuiltInRootsModule)) {
 -      mozilla::glean::verification_used_cert_from::built_in_roots_module
 -          .AddToNumerator(1);
-     }
-   }
- 
-@@ -666,7 +620,6 @@ PRErrorCode AuthCertificateParseResults(
-     nsITransportSecurityInfo::OverridableErrorCategory&
-         aOverridableErrorCategory) {
-   uint32_t probeValue = MapCertErrorToProbeValue(aCertVerificationError);
+-    }
+-  }
+-
+-  if ((aCertVerificationResult == Success ||
+-       aCertVerificationResult ==
+-           Result::ERROR_INSUFFICIENT_CERTIFICATE_TRANSPARENCY) &&
+-      aBuiltCertChain.Length() > 0) {
+-    const nsTArray<uint8_t>& rootCert = aBuiltCertChain.LastElement();
+-    GatherCertificateTransparencyTelemetry(rootCert,
+-                                           aCertificateTransparencyInfo);
+-  }
+-}
+-
+-// Note: Takes ownership of |peerCertChain| if SECSuccess is not returned.
+-Result AuthCertificate(
+-    CertVerifier& certVerifier, void* aPinArg,
+-    const nsTArray<uint8_t>& certBytes,
+-    const nsTArray<nsTArray<uint8_t>>& peerCertChain,
+-    const nsACString& aHostName, const OriginAttributes& aOriginAttributes,
+-    const Maybe<nsTArray<uint8_t>>& stapledOCSPResponse,
+-    const Maybe<nsTArray<uint8_t>>& sctsFromTLSExtension,
+-    const Maybe<DelegatedCredentialInfo>& dcInfo, uint32_t providerFlags,
+-    Time time, uint32_t certVerifierFlags,
+-    /*out*/ nsTArray<nsTArray<uint8_t>>& builtCertChain,
+-    /*out*/ EVStatus& evStatus,
+-    /*out*/ CertificateTransparencyInfo& certificateTransparencyInfo,
+-    /*out*/ bool& aIsBuiltCertChainRootBuiltInRoot,
+-    /*out*/ bool& aMadeOCSPRequests) {
+-  CertVerifier::OCSPStaplingStatus ocspStaplingStatus =
+-      CertVerifier::OCSP_STAPLING_NEVER_CHECKED;
+-  KeySizeStatus keySizeStatus = KeySizeStatus::NeverChecked;
+-  PinningTelemetryInfo pinningTelemetryInfo;
+-
+-  nsTArray<nsTArray<uint8_t>> peerCertsBytes;
+-  // Don't include the end-entity certificate.
+-  if (!peerCertChain.IsEmpty()) {
+-    std::transform(
+-        peerCertChain.cbegin() + 1, peerCertChain.cend(),
+-        MakeBackInserter(peerCertsBytes),
+-        [](const auto& elementArray) { return elementArray.Clone(); });
+-  }
+-
+-  IssuerSources issuerSources;
+-  Result rv = certVerifier.VerifySSLServerCert(
+-      certBytes, time, aPinArg, aHostName, builtCertChain, certVerifierFlags,
+-      Some(std::move(peerCertsBytes)), stapledOCSPResponse,
+-      sctsFromTLSExtension, dcInfo, aOriginAttributes, &evStatus,
+-      &ocspStaplingStatus, &keySizeStatus, &pinningTelemetryInfo,
+-      &certificateTransparencyInfo, &aIsBuiltCertChainRootBuiltInRoot,
+-      &aMadeOCSPRequests, &issuerSources);
+-
+-  CollectCertTelemetry(rv, evStatus, ocspStaplingStatus, keySizeStatus,
+-                       pinningTelemetryInfo, builtCertChain,
+-                       certificateTransparencyInfo, issuerSources);
+-
+-  return rv;
+-}
+-
+-PRErrorCode AuthCertificateParseResults(
+-    uint64_t aPtrForLog, const nsACString& aHostName, int32_t aPort,
+-    const OriginAttributes& aOriginAttributes,
+-    const nsCOMPtr<nsIX509Cert>& aCert, mozilla::pkix::Time aTime,
+-    PRErrorCode aCertVerificationError,
+-    /* out */
+-    nsITransportSecurityInfo::OverridableErrorCategory&
+-        aOverridableErrorCategory) {
+-  uint32_t probeValue = MapCertErrorToProbeValue(aCertVerificationError);
 -  glean::ssl::cert_verification_errors.AccumulateSingleSample(probeValue);
- 
-   Maybe<nsITransportSecurityInfo::OverridableErrorCategory>
-       maybeOverridableErrorCategory =
-@@ -709,7 +662,6 @@ PRErrorCode AuthCertificateParseResults(
-   if (haveOverride) {
-     uint32_t probeValue =
-         MapOverridableErrorToProbeValue(aCertVerificationError);
+-
+-  Maybe<nsITransportSecurityInfo::OverridableErrorCategory>
+-      maybeOverridableErrorCategory =
+-          CategorizeCertificateError(aCertVerificationError);
+-  // If this isn't an overridable error, return it now. This will stop the
+-  // connection and report the given error.
+-  if (!maybeOverridableErrorCategory.isSome()) {
+-    return aCertVerificationError;
+-  }
+-  aOverridableErrorCategory = *maybeOverridableErrorCategory;
+-
+-  bool overrideAllowed = false;
+-  nsresult rv = OverrideAllowedForHost(aPtrForLog, aHostName, aOriginAttributes,
+-                                       overrideAllowed);
+-  if (NS_FAILED(rv)) {
+-    return aCertVerificationError;
+-  }
+-
+-  if (!overrideAllowed) {
+-    MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
+-            ("[0x%" PRIx64 "] HSTS or pinned host - no overrides allowed",
+-             aPtrForLog));
+-    return aCertVerificationError;
+-  }
+-
+-  nsCOMPtr<nsICertOverrideService> overrideService =
+-      do_GetService(NS_CERTOVERRIDE_CONTRACTID);
+-  if (!overrideService) {
+-    return aCertVerificationError;
+-  }
+-  bool haveOverride;
+-  bool isTemporaryOverride;
+-  rv = overrideService->HasMatchingOverride(aHostName, aPort, aOriginAttributes,
+-                                            aCert, &isTemporaryOverride,
+-                                            &haveOverride);
+-  if (NS_FAILED(rv)) {
+-    return aCertVerificationError;
+-  }
+-  (void)isTemporaryOverride;
+-  if (haveOverride) {
+-    uint32_t probeValue =
+-        MapOverridableErrorToProbeValue(aCertVerificationError);
 -    glean::ssl::cert_error_overrides.AccumulateSingleSample(probeValue);
-     MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
-             ("[0x%" PRIx64 "] certificate error overridden", aPtrForLog));
-     return 0;
-@@ -808,9 +760,6 @@ SSLServerCertVerificationJob::Run() {
- 
-   TimeDuration elapsed = TimeStamp::Now() - jobStartTime;
-   if (result == Success) {
+-    MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
+-            ("[0x%" PRIx64 "] certificate error overridden", aPtrForLog));
+-    return 0;
+-  }
+-
+-  return aCertVerificationError;
+-}
+-
+-static nsTArray<nsTArray<uint8_t>> CreateCertBytesArray(
+-    const UniqueSECItemArray& aCertChain) {
+-  nsTArray<nsTArray<uint8_t>> certsBytes;
+-  for (size_t i = 0; i < aCertChain->len; i++) {
+-    nsTArray<uint8_t> certBytes;
+-    certBytes.AppendElements(aCertChain->items[i].data,
+-                             aCertChain->items[i].len);
+-    certsBytes.AppendElement(std::move(certBytes));
+-  }
+-  return certsBytes;
+-}
+-
+-/*static*/
+-SECStatus SSLServerCertVerificationJob::Dispatch(
+-    uint64_t addrForLogging, void* aPinArg,
+-    nsTArray<nsTArray<uint8_t>>&& peerCertChain, const nsACString& aHostName,
+-    int32_t aPort, const OriginAttributes& aOriginAttributes,
+-    Maybe<nsTArray<uint8_t>>& stapledOCSPResponse,
+-    Maybe<nsTArray<uint8_t>>& sctsFromTLSExtension,
+-    Maybe<DelegatedCredentialInfo>& dcInfo, uint32_t providerFlags, Time time,
+-    uint32_t certVerifierFlags,
+-    BaseSSLServerCertVerificationResult* aResultTask) {
+-  // Runs on the socket transport thread
+-  if (!aResultTask || peerCertChain.IsEmpty()) {
+-    MOZ_ASSERT_UNREACHABLE(
+-        "must have result task and non-empty peer cert chain");
+-    PR_SetError(SEC_ERROR_LIBRARY_FAILURE, 0);
+-    return SECFailure;
+-  }
+-
+-  if (!gCertVerificationThreadPool) {
+-    PR_SetError(PR_INVALID_STATE_ERROR, 0);
+-    return SECFailure;
+-  }
+-
+-  RefPtr<SSLServerCertVerificationJob> job(new SSLServerCertVerificationJob(
+-      addrForLogging, aPinArg, std::move(peerCertChain), aHostName, aPort,
+-      aOriginAttributes, stapledOCSPResponse, sctsFromTLSExtension, dcInfo,
+-      providerFlags, time, certVerifierFlags, aResultTask));
+-
+-  nsresult nrv = gCertVerificationThreadPool->Dispatch(job, NS_DISPATCH_NORMAL);
+-  if (NS_FAILED(nrv)) {
+-    // We can't call SetCertVerificationResult here to change
+-    // mCertVerificationState because SetCertVerificationResult will call
+-    // libssl functions that acquire SSL locks that are already being held at
+-    // this point. However, we can set an error with PR_SetError and return
+-    // SECFailure, and the correct thing will happen (the error will be
+-    // propagated and this connection will be terminated).
+-    PRErrorCode error = nrv == NS_ERROR_OUT_OF_MEMORY ? PR_OUT_OF_MEMORY_ERROR
+-                                                      : PR_INVALID_STATE_ERROR;
+-    PR_SetError(error, 0);
+-    return SECFailure;
+-  }
+-
+-  PR_SetError(PR_WOULD_BLOCK_ERROR, 0);
+-  return SECWouldBlock;
+-}
+-
+-NS_IMETHODIMP
+-SSLServerCertVerificationJob::Run() {
+-  // Runs on a cert verification thread and only on parent process.
+-  MOZ_ASSERT(XRE_IsParentProcess());
+-
+-  MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
+-          ("[%" PRIx64 "] SSLServerCertVerificationJob::Run", mAddrForLogging));
+-
+-  RefPtr<SharedCertVerifier> certVerifier(GetDefaultCertVerifier());
+-  if (!certVerifier) {
+-    // We can't release this off the STS thread because some parts of it
+-    // are not threadsafe. Just leak mResultTask.
+-    mResultTask.forget().leak();
+-    return NS_ERROR_FAILURE;
+-  }
+-
+-  TimeStamp jobStartTime = TimeStamp::Now();
+-  EVStatus evStatus;
+-  CertificateTransparencyInfo certificateTransparencyInfo;
+-  bool isCertChainRootBuiltInRoot = false;
+-  bool madeOCSPRequests = false;
+-  nsTArray<nsTArray<uint8_t>> builtChainBytesArray;
+-  nsTArray<uint8_t> certBytes(mPeerCertChain.ElementAt(0).Clone());
+-  Result result = AuthCertificate(
+-      *certVerifier, mPinArg, certBytes, mPeerCertChain, mHostName,
+-      mOriginAttributes, mStapledOCSPResponse, mSCTsFromTLSExtension, mDCInfo,
+-      mProviderFlags, mTime, mCertVerifierFlags, builtChainBytesArray, evStatus,
+-      certificateTransparencyInfo, isCertChainRootBuiltInRoot,
+-      madeOCSPRequests);
+-
+-  TimeDuration elapsed = TimeStamp::Now() - jobStartTime;
+-  if (result == Success) {
 -    mozilla::glean::cert_verification_time::success.AccumulateRawDuration(
 -        elapsed);
 -    glean::ssl::cert_error_overrides.AccumulateSingleSample(1);
- 
-     nsresult rv = mResultTask->Dispatch(
-         std::move(builtChainBytesArray), std::move(mPeerCertChain),
-@@ -827,9 +776,6 @@ SSLServerCertVerificationJob::Run() {
-     return rv;
-   }
- 
+-
+-    nsresult rv = mResultTask->Dispatch(
+-        std::move(builtChainBytesArray), std::move(mPeerCertChain),
+-        TransportSecurityInfo::ConvertCertificateTransparencyInfoToStatus(
+-            certificateTransparencyInfo),
+-        evStatus, true, 0,
+-        nsITransportSecurityInfo::OverridableErrorCategory::ERROR_UNSET,
+-        isCertChainRootBuiltInRoot, mProviderFlags, madeOCSPRequests);
+-    if (NS_FAILED(rv)) {
+-      // We can't release this off the STS thread because some parts of it
+-      // are not threadsafe. Just leak mResultTask.
+-      mResultTask.forget().leak();
+-    }
+-    return rv;
+-  }
+-
 -  mozilla::glean::cert_verification_time::failure.AccumulateRawDuration(
 -      elapsed);
 -
-   PRErrorCode error = MapResultToPRErrorCode(result);
-   nsITransportSecurityInfo::OverridableErrorCategory overridableErrorCategory =
-       nsITransportSecurityInfo::OverridableErrorCategory::ERROR_UNSET;
+-  PRErrorCode error = MapResultToPRErrorCode(result);
+-  nsITransportSecurityInfo::OverridableErrorCategory overridableErrorCategory =
+-      nsITransportSecurityInfo::OverridableErrorCategory::ERROR_UNSET;
+-  nsCOMPtr<nsIX509Cert> cert(new nsNSSCertificate(std::move(certBytes)));
+-  PRErrorCode finalError = AuthCertificateParseResults(
+-      mAddrForLogging, mHostName, mPort, mOriginAttributes, cert, mTime, error,
+-      overridableErrorCategory);
+-
+-  // NB: finalError may be 0 here, in which the connection will continue.
+-  nsresult rv = mResultTask->Dispatch(
+-      std::move(builtChainBytesArray), std::move(mPeerCertChain),
+-      TransportSecurityInfo::ConvertCertificateTransparencyInfoToStatus(
+-          certificateTransparencyInfo),
+-      EVStatus::NotEV, false, finalError, overridableErrorCategory,
+-      // If the certificate verifier returned Result::ERROR_BAD_CERT_DOMAIN,
+-      // a chain was built, so isCertChainRootBuiltInRoot is valid and
+-      // potentially useful. Otherwise, assume no chain was built.
+-      result == Result::ERROR_BAD_CERT_DOMAIN ? isCertChainRootBuiltInRoot
+-                                              : false,
+-      mProviderFlags, madeOCSPRequests);
+-  if (NS_FAILED(rv)) {
+-    // We can't release this off the STS thread because some parts of it
+-    // are not threadsafe. Just leak mResultTask.
+-    mResultTask.forget().leak();
+-  }
+-  return rv;
+-}
+-
+-// Takes information needed for cert verification, does some consistency
+-//  checks and calls SSLServerCertVerificationJob::Dispatch.
+-SECStatus AuthCertificateHookInternal(
+-    CommonSocketControl* socketControl, const void* aPtrForLogging,
+-    const nsACString& hostName, nsTArray<nsTArray<uint8_t>>&& peerCertChain,
+-    Maybe<nsTArray<uint8_t>>& stapledOCSPResponse,
+-    Maybe<nsTArray<uint8_t>>& sctsFromTLSExtension,
+-    Maybe<DelegatedCredentialInfo>& dcInfo, uint32_t providerFlags,
+-    uint32_t certVerifierFlags) {
+-  // Runs on the socket transport thread
+-
+-  MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
+-          ("[%p] starting AuthCertificateHookInternal\n", aPtrForLogging));
+-
+-  if (!socketControl || peerCertChain.IsEmpty()) {
+-    PR_SetError(PR_INVALID_STATE_ERROR, 0);
+-    return SECFailure;
+-  }
+-
+-  bool onSTSThread;
+-  nsresult nrv;
+-  nsCOMPtr<nsIEventTarget> sts =
+-      do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &nrv);
+-  if (NS_SUCCEEDED(nrv)) {
+-    nrv = sts->IsOnCurrentThread(&onSTSThread);
+-  }
+-
+-  if (NS_FAILED(nrv)) {
+-    NS_ERROR("Could not get STS service or IsOnCurrentThread failed");
+-    PR_SetError(PR_UNKNOWN_ERROR, 0);
+-    return SECFailure;
+-  }
+-
+-  MOZ_ASSERT(onSTSThread);
+-
+-  if (!onSTSThread) {
+-    PR_SetError(PR_INVALID_STATE_ERROR, 0);
+-    return SECFailure;
+-  }
+-
+-  uint64_t addr = reinterpret_cast<uintptr_t>(aPtrForLogging);
+-  RefPtr resultTask =
+-      MakeRefPtr<SSLServerCertVerificationResult>(socketControl);
+-
+-  if (XRE_IsSocketProcess()) {
+-    return RemoteProcessCertVerification(
+-        std::move(peerCertChain), hostName, socketControl->GetPort(),
+-        socketControl->GetOriginAttributes(), stapledOCSPResponse,
+-        sctsFromTLSExtension, dcInfo, providerFlags, certVerifierFlags,
+-        resultTask);
+-  }
+-
+-  // We *must* do certificate verification on a background thread because
+-  // we need the socket transport thread to be free for our OCSP requests,
+-  // and we *want* to do certificate verification on a background thread
+-  // because of the performance benefits of doing so.
+-  return SSLServerCertVerificationJob::Dispatch(
+-      addr, socketControl, std::move(peerCertChain), hostName,
+-      socketControl->GetPort(), socketControl->GetOriginAttributes(),
+-      stapledOCSPResponse, sctsFromTLSExtension, dcInfo, providerFlags, Now(),
+-      certVerifierFlags, resultTask);
+-}
+-
+-// Extracts whatever information we need out of fd (using SSL_*) and passes it
+-// to AuthCertificateHookInternal. AuthCertificateHookInternal will call
+-// SSLServerCertVerificationJob::Dispatch. SSLServerCertVerificationJob
+-// should never do anything with fd except logging.
+-SECStatus AuthCertificateHook(void* arg, PRFileDesc* fd, PRBool checkSig,
+-                              PRBool isServer) {
+-  MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
+-          ("[%p] starting AuthCertificateHook\n", fd));
+-
+-  // Modern libssl always passes PR_TRUE for checkSig, and we have no means of
+-  // doing verification without checking signatures.
+-  MOZ_ASSERT(checkSig, "AuthCertificateHook: checkSig unexpectedly false");
+-
+-  // PSM never causes libssl to call this function with PR_TRUE for isServer,
+-  // and many things in PSM assume that we are a client.
+-  MOZ_ASSERT(!isServer, "AuthCertificateHook: isServer unexpectedly true");
+-
+-  NSSSocketControl* socketInfo = static_cast<NSSSocketControl*>(arg);
+-
+-  UniqueCERTCertificate serverCert(SSL_PeerCertificate(fd));
+-
+-  if (!checkSig || isServer || !socketInfo || !serverCert) {
+-    PR_SetError(PR_INVALID_STATE_ERROR, 0);
+-    return SECFailure;
+-  }
+-  socketInfo->SetFullHandshake();
+-
+-  if (BlockServerCertChangeForSpdy(socketInfo, serverCert) != SECSuccess) {
+-    return SECFailure;
+-  }
+-
+-  UniqueSECItemArray peerCertChain;
+-  SECStatus rv =
+-      SSL_PeerCertificateChainDER(fd, TempPtrToSetter(&peerCertChain));
+-  if (rv != SECSuccess) {
+-    PR_SetError(PR_INVALID_STATE_ERROR, 0);
+-    return SECFailure;
+-  }
+-  MOZ_ASSERT(peerCertChain,
+-             "AuthCertificateHook: peerCertChain unexpectedly null");
+-
+-  nsTArray<nsTArray<uint8_t>> peerCertsBytes =
+-      CreateCertBytesArray(peerCertChain);
+-
+-  // SSL_PeerStapledOCSPResponses will never return a non-empty response if
+-  // OCSP stapling wasn't enabled because libssl wouldn't have let the server
+-  // return a stapled OCSP response.
+-  // We don't own these pointers.
+-  const SECItemArray* csa = SSL_PeerStapledOCSPResponses(fd);
+-  Maybe<nsTArray<uint8_t>> stapledOCSPResponse;
+-  // we currently only support single stapled responses
+-  if (csa && csa->len == 1) {
+-    stapledOCSPResponse.emplace();
+-    stapledOCSPResponse->SetCapacity(csa->items[0].len);
+-    stapledOCSPResponse->AppendElements(csa->items[0].data, csa->items[0].len);
+-  }
+-
+-  Maybe<nsTArray<uint8_t>> sctsFromTLSExtension;
+-  const SECItem* sctsFromTLSExtensionSECItem = SSL_PeerSignedCertTimestamps(fd);
+-  if (sctsFromTLSExtensionSECItem) {
+-    sctsFromTLSExtension.emplace();
+-    sctsFromTLSExtension->SetCapacity(sctsFromTLSExtensionSECItem->len);
+-    sctsFromTLSExtension->AppendElements(sctsFromTLSExtensionSECItem->data,
+-                                         sctsFromTLSExtensionSECItem->len);
+-  }
+-
+-  uint32_t providerFlags = 0;
+-  socketInfo->GetProviderFlags(&providerFlags);
+-
+-  uint32_t certVerifierFlags = 0;
+-  if (!StaticPrefs::security_ssl_enable_ocsp_stapling() ||
+-      !StaticPrefs::security_ssl_enable_ocsp_must_staple()) {
+-    certVerifierFlags |= CertVerifier::FLAG_TLS_IGNORE_STATUS_REQUEST;
+-  }
+-
+-  // Get DC information
+-  Maybe<DelegatedCredentialInfo> dcInfo;
+-  SSLPreliminaryChannelInfo channelPreInfo;
+-  rv = SSL_GetPreliminaryChannelInfo(fd, &channelPreInfo,
+-                                     sizeof(channelPreInfo));
+-  if (rv != SECSuccess) {
+-    PR_SetError(PR_INVALID_STATE_ERROR, 0);
+-    return SECFailure;
+-  }
+-  if (channelPreInfo.peerDelegCred) {
+-    dcInfo.emplace(DelegatedCredentialInfo(channelPreInfo.signatureScheme,
+-                                           channelPreInfo.authKeyBits));
+-  }
+-
+-  // If we configured an ECHConfig and NSS returned the public name
+-  // for verification, ECH was rejected. Proceed, verifying to the
+-  // public name. The result determines how NSS will fail (i.e. with
+-  // any provided retry_configs if successful). See draft-ietf-tls-esni-08.
+-  nsCString echConfig;
+-  nsresult nsrv = socketInfo->GetEchConfig(echConfig);
+-  bool verifyToEchPublicName =
+-      NS_SUCCEEDED(nsrv) && echConfig.Length() && channelPreInfo.echPublicName;
+-
+-  const nsCString echPublicName(channelPreInfo.echPublicName);
+-  const nsACString& hostname =
+-      verifyToEchPublicName ? echPublicName : socketInfo->GetHostName();
+-  socketInfo->SetCertVerificationWaiting();
+-  rv = AuthCertificateHookInternal(socketInfo, static_cast<const void*>(fd),
+-                                   hostname, std::move(peerCertsBytes),
+-                                   stapledOCSPResponse, sctsFromTLSExtension,
+-                                   dcInfo, providerFlags, certVerifierFlags);
+-  return rv;
+-}
+-
+-// Takes information needed for cert verification, does some consistency
+-// checks and calls SSLServerCertVerificationJob::Dispatch.
+-// This function is used for Quic.
+-SECStatus AuthCertificateHookWithInfo(
+-    CommonSocketControl* socketControl, const nsACString& aHostName,
+-    const void* aPtrForLogging, nsTArray<nsTArray<uint8_t>>&& peerCertChain,
+-    Maybe<nsTArray<nsTArray<uint8_t>>>& stapledOCSPResponses,
+-    Maybe<nsTArray<uint8_t>>& sctsFromTLSExtension, uint32_t providerFlags) {
+-  if (peerCertChain.IsEmpty()) {
+-    PR_SetError(PR_INVALID_STATE_ERROR, 0);
+-    return SECFailure;
+-  }
+-
+-  // we currently only support single stapled responses
+-  Maybe<nsTArray<uint8_t>> stapledOCSPResponse;
+-  if (stapledOCSPResponses && (stapledOCSPResponses->Length() == 1)) {
+-    stapledOCSPResponse.emplace(stapledOCSPResponses->ElementAt(0).Clone());
+-  }
+-
+-  uint32_t certVerifierFlags = 0;
+-  if (!StaticPrefs::security_ssl_enable_ocsp_stapling() ||
+-      !StaticPrefs::security_ssl_enable_ocsp_must_staple()) {
+-    certVerifierFlags |= CertVerifier::FLAG_TLS_IGNORE_STATUS_REQUEST;
+-  }
+-
+-  // Need to update Quic stack to reflect the PreliminaryInfo fields
+-  // for Delegated Credentials.
+-  Maybe<DelegatedCredentialInfo> dcInfo;
+-
+-  return AuthCertificateHookInternal(socketControl, aPtrForLogging, aHostName,
+-                                     std::move(peerCertChain),
+-                                     stapledOCSPResponse, sctsFromTLSExtension,
+-                                     dcInfo, providerFlags, certVerifierFlags);
+-}
+-
+-NS_IMPL_ISUPPORTS_INHERITED0(SSLServerCertVerificationResult, Runnable)
+-
+-SSLServerCertVerificationResult::SSLServerCertVerificationResult(
+-    CommonSocketControl* socketControl)
+-    : Runnable("psm::SSLServerCertVerificationResult"),
+-      mSocketControl(socketControl),
+-      mCertificateTransparencyStatus(0),
+-      mEVStatus(EVStatus::NotEV),
+-      mSucceeded(false),
+-      mFinalError(0),
+-      mOverridableErrorCategory(
+-          nsITransportSecurityInfo::OverridableErrorCategory::ERROR_UNSET),
+-      mIsBuiltCertChainRootBuiltInRoot(false),
+-      mProviderFlags(0),
+-      mMadeOCSPRequests(false) {}
+-
+-nsresult SSLServerCertVerificationResult::Dispatch(
+-    nsTArray<nsTArray<uint8_t>>&& aBuiltChain,
+-    nsTArray<nsTArray<uint8_t>>&& aPeerCertChain,
+-    uint16_t aCertificateTransparencyStatus, EVStatus aEVStatus,
+-    bool aSucceeded, PRErrorCode aFinalError,
+-    nsITransportSecurityInfo::OverridableErrorCategory
+-        aOverridableErrorCategory,
+-    bool aIsBuiltCertChainRootBuiltInRoot, uint32_t aProviderFlags,
+-    bool aMadeOCSPRequests) {
+-  mBuiltChain = std::move(aBuiltChain);
+-  mPeerCertChain = std::move(aPeerCertChain);
+-  mCertificateTransparencyStatus = aCertificateTransparencyStatus;
+-  mEVStatus = aEVStatus;
+-  mSucceeded = aSucceeded;
+-  mFinalError = aFinalError;
+-  mOverridableErrorCategory = aOverridableErrorCategory;
+-  mIsBuiltCertChainRootBuiltInRoot = aIsBuiltCertChainRootBuiltInRoot;
+-  mProviderFlags = aProviderFlags;
+-  mMadeOCSPRequests = aMadeOCSPRequests;
+-
+-  if (mSucceeded &&
+-      (mBuiltChain.IsEmpty() || mFinalError != 0 ||
+-       mOverridableErrorCategory !=
+-           nsITransportSecurityInfo::OverridableErrorCategory::ERROR_UNSET)) {
+-    MOZ_ASSERT_UNREACHABLE(
+-        "if certificate verification succeeded without overridden errors, the "
+-        "built chain shouldn't be empty and any error bits should be unset");
+-    mSucceeded = false;
+-    mFinalError = SEC_ERROR_LIBRARY_FAILURE;
+-  }
+-  // Note that mSucceeded can be false while mFinalError is 0, in which case
+-  // the connection will proceed.
+-  if (!mSucceeded && mPeerCertChain.IsEmpty()) {
+-    MOZ_ASSERT_UNREACHABLE(
+-        "if certificate verification failed, the peer chain shouldn't be "
+-        "empty");
+-    mFinalError = SEC_ERROR_LIBRARY_FAILURE;
+-  }
+-
+-  nsresult rv;
+-  nsCOMPtr<nsIEventTarget> stsTarget =
+-      do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
+-  MOZ_ASSERT(stsTarget, "Failed to get socket transport service event target");
+-  if (!stsTarget) {
+-    // This has to be released on STS; just leak it
+-    mSocketControl.forget().leak();
+-    return NS_ERROR_FAILURE;
+-  }
+-  rv = stsTarget->Dispatch(this, NS_DISPATCH_NORMAL);
+-  MOZ_ASSERT(NS_SUCCEEDED(rv),
+-             "Failed to dispatch SSLServerCertVerificationResult");
+-  return rv;
+-}
+-
+-NS_IMETHODIMP
+-SSLServerCertVerificationResult::Run() {
+-#ifdef DEBUG
+-  bool onSTSThread = false;
+-  nsresult nrv;
+-  nsCOMPtr<nsIEventTarget> sts =
+-      do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &nrv);
+-  if (NS_SUCCEEDED(nrv)) {
+-    nrv = sts->IsOnCurrentThread(&onSTSThread);
+-  }
+-
+-  MOZ_ASSERT(onSTSThread);
+-#endif
+-
+-  mSocketControl->SetMadeOCSPRequests(mMadeOCSPRequests);
+-  mSocketControl->SetIsBuiltCertChainRootBuiltInRoot(
+-      mIsBuiltCertChainRootBuiltInRoot);
+-  mSocketControl->SetCertificateTransparencyStatus(
+-      mCertificateTransparencyStatus);
+-
+-  if (mSucceeded) {
+-    MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
+-            ("SSLServerCertVerificationResult::Run setting NEW cert"));
+-    nsTArray<uint8_t> certBytes(mBuiltChain.ElementAt(0).Clone());
+-    nsCOMPtr<nsIX509Cert> cert(new nsNSSCertificate(std::move(certBytes)));
+-    mSocketControl->SetServerCert(cert, mEVStatus);
+-    mSocketControl->SetSucceededCertChain(std::move(mBuiltChain));
+-  } else {
+-    nsTArray<uint8_t> certBytes(mPeerCertChain.ElementAt(0).Clone());
+-    nsCOMPtr<nsIX509Cert> cert(new nsNSSCertificate(std::move(certBytes)));
+-    mSocketControl->SetServerCert(cert, EVStatus::NotEV);
+-    if (mOverridableErrorCategory !=
+-        nsITransportSecurityInfo::OverridableErrorCategory::ERROR_UNSET) {
+-      mSocketControl->SetStatusErrorBits(mOverridableErrorCategory);
+-    }
+-  }
+-
+-  mSocketControl->SetHandshakeCertificates(std::move(mPeerCertChain));
+-  mSocketControl->SetCertVerificationResult(mFinalError);
+-  // Release this reference to the socket control so that it will be freed on
+-  // the socket thread.
+-  mSocketControl = nullptr;
+-  return NS_OK;
+-}
+-
+-}  // namespace psm
+-}  // namespace mozilla
++/*
++ * This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++// During certificate authentication, we call CertVerifier::VerifySSLServerCert.
++// This function may make zero or more HTTP requests (e.g. to gather revocation
++// information). Our fetching logic for these requests processes them on the
++// socket transport service thread.
++//
++// Because the connection for which we are verifying the certificate is
++// happening on the socket transport thread, if our cert auth hook were to call
++// VerifySSLServerCert directly, there would be a deadlock: VerifySSLServerCert
++// would cause an event to be asynchronously posted to the socket transport
++// thread, and then it would block the socket transport thread waiting to be
++// notified of the HTTP response. However, the HTTP request would never actually
++// be processed because the socket transport thread would be blocked and so it
++// wouldn't be able process HTTP requests.
++//
++// Consequently, when we are asked to verify a certificate, we must always call
++// VerifySSLServerCert on another thread. To accomplish this, our auth cert hook
++// dispatches a SSLServerCertVerificationJob to a pool of background threads,
++// and then immediately returns SECWouldBlock to libssl. These jobs are where
++// VerifySSLServerCert is actually called.
++//
++// When our auth cert hook returns SECWouldBlock, libssl will carry on the
++// handshake while we validate the certificate. This will free up the socket
++// transport thread so that HTTP requests--including the OCSP requests needed
++// for cert verification as mentioned above--can be processed.
++//
++// Once VerifySSLServerCert returns, the cert verification job dispatches a
++// SSLServerCertVerificationResult to the socket transport thread; the
++// SSLServerCertVerificationResult will notify libssl that the certificate
++// authentication is complete. Once libssl is notified that the authentication
++// is complete, it will continue the TLS handshake (if it hasn't already
++// finished) and it will begin allowing us to send/receive data on the
++// connection.
++//
++// Timeline of events (for connections managed by the socket transport service):
++//
++//    * libssl calls SSLServerCertVerificationJob::Dispatch on the socket
++//      transport thread.
++//    * SSLServerCertVerificationJob::Dispatch queues a job
++//      (instance of SSLServerCertVerificationJob) to its background thread
++//      pool and returns.
++//    * One of the background threads calls CertVerifier::VerifySSLServerCert,
++//      which may enqueue some HTTP request(s) onto the socket transport thread,
++//      and then blocks that background thread waiting for the responses and/or
++//      timeouts or errors for those requests.
++//    * Once those HTTP responses have all come back or failed, the
++//      CertVerifier::VerifySSLServerCert function returns a result indicating
++//      that the validation succeeded or failed.
++//    * If the validation succeeded, then a SSLServerCertVerificationResult
++//      event is posted to the socket transport thread, and the cert
++//      verification thread becomes free to verify other certificates.
++//    * Otherwise, we do cert override processing to see if the validation
++//      error can be convered by override rules. The result of this processing
++//      is similarly dispatched in a SSLServerCertVerificationResult.
++//    * The SSLServerCertVerificationResult event will either wake up the
++//      socket (using SSL_AuthCertificateComplete) if validation succeeded or
++//      there was an error override, or it will set an error flag so that the
++//      next I/O operation on the socket will fail, causing the socket transport
++//      thread to close the connection.
++//
++// SSLServerCertVerificationResult must be dispatched to the socket transport
++// thread because we must only call SSL_* functions on the socket transport
++// thread since they may do I/O, because many parts of NSSSocketControl and the
++// PSM NSS I/O layer are not thread-safe, and because we need the event to
++// interrupt the PR_Poll that may waiting for I/O on the socket for which we
++// are validating the cert.
++//
++// When socket process is enabled, libssl is running on socket process. To
++// perform certificate authentication with CertVerifier, we have to send all
++// needed information to parent process and send the result back to socket
++// process via IPC. The workflow is described below.
++// 1. In AuthCertificateHookInternal(), we call RemoteProcessCertVerification()
++//    instead of SSLServerCertVerificationJob::Dispatch when we are on socket
++//    process.
++// 2. In RemoteProcessCertVerification(), PVerifySSLServerCert actors will be
++//    created on IPDL background thread for carrying needed information via IPC.
++// 3. On parent process, VerifySSLServerCertParent is created and it calls
++//    SSLServerCertVerificationJob::Dispatch for doing certificate verification
++//    on one of CertVerificationThreads.
++// 4. When validation is done, OnVerifiedSSLServerCertSuccess IPC message is
++//    sent through the IPDL background thread when
++//    CertVerifier::VerifySSLServerCert returns Success. Otherwise,
++//    OnVerifiedSSLServerCertFailure is sent.
++// 5. After setp 4, PVerifySSLServerCert actors will be released. The
++//    verification result will be dispatched via
++//    SSLServerCertVerificationResult.
++
++#include "SSLServerCertVerification.h"
++
++#include <cstring>
++
++#include "CertVerifier.h"
++#include "CryptoTask.h"
++#include "ExtendedValidation.h"
++#include "NSSCertDBTrustDomain.h"
++#include "NSSSocketControl.h"
++#include "RootCertificateTelemetryUtils.h"
++#include "ScopedNSSTypes.h"
++#include "SharedCertVerifier.h"
++#include "VerifySSLServerCertChild.h"
++#include "cert.h"
++#include "mozilla/Assertions.h"
++#include "mozilla/RefPtr.h"
++#include "mozilla/StaticPrefs_security.h"
++#include "mozilla/UniquePtr.h"
++#include "mozpkix/pkix.h"
++#include "mozpkix/pkixcheck.h"
++#include "mozpkix/pkixnss.h"
++#include "mozpkix/pkixutil.h"
++#include "nsComponentManagerUtils.h"
++#include "nsContentUtils.h"
++#include "nsICertOverrideService.h"
++#include "nsIPublicKeyPinningService.h"
++#include "nsISiteSecurityService.h"
++#include "nsISocketProvider.h"
++#include "nsNSSCertificate.h"
++#include "nsNSSComponent.h"
++#include "nsNSSIOLayer.h"
++#include "nsNetUtil.h"
++#include "nsServiceManagerUtils.h"
++#include "nsString.h"
++#include "nsThreadPool.h"
++#include "nsURLHelper.h"
++#include "nsXPCOMCIDInternal.h"
++#include "secerr.h"
++#include "secport.h"
++#include "ssl.h"
++#include "sslerr.h"
++#include "sslexp.h"
++
++extern mozilla::LazyLogModule gPIPNSSLog;
++
++using namespace mozilla::pkix;
++
++namespace mozilla {
++namespace psm {
++
++// do not use a nsCOMPtr to avoid static initializer/destructor
++nsIThreadPool* gCertVerificationThreadPool = nullptr;
++
++// Called when the socket transport thread starts, to initialize the SSL cert
++// verification thread pool. By tying the thread pool startup/shutdown directly
++// to the STS thread's lifetime, we ensure that they are *always* available for
++// SSL connections and that there are no races during startup and especially
++// shutdown. (Previously, we have had multiple problems with races in PSM
++// background threads, and the race-prevention/shutdown logic used there is
++// brittle. Since this service is critical to things like downloading updates,
++// we take no chances.) Also, by doing things this way, we avoid the need for
++// locks, since gCertVerificationThreadPool is only ever accessed on the socket
++// transport thread.
++void InitializeSSLServerCertVerificationThreads() {
++  // TODO: tuning, make parameters preferences
++  gCertVerificationThreadPool = new nsThreadPool();
++  NS_ADDREF(gCertVerificationThreadPool);
++
++  (void)gCertVerificationThreadPool->SetThreadLimit(5);
++  (void)gCertVerificationThreadPool->SetIdleThreadLimit(1);
++  (void)gCertVerificationThreadPool->SetIdleThreadMaximumTimeout(30 * 1000);
++  (void)gCertVerificationThreadPool->SetIdleThreadGraceTimeout(500);
++  (void)gCertVerificationThreadPool->SetName("SSL Cert"_ns);
++}
++
++// Called when the socket transport thread finishes, to destroy the thread
++// pool. Since the socket transport service has stopped processing events, it
++// will not attempt any more SSL I/O operations, so it is clearly safe to shut
++// down the SSL cert verification infrastructure. Also, the STS will not
++// dispatch many SSL verification result events at this point, so any pending
++// cert verifications will (correctly) fail at the point they are dispatched.
++//
++// The other shutdown race condition that is possible is a race condition with
++// shutdown of the nsNSSComponent service. We use the
++// nsNSSShutdownPreventionLock where needed (not here) to prevent that.
++void StopSSLServerCertVerificationThreads() {
++  if (gCertVerificationThreadPool) {
++    gCertVerificationThreadPool->Shutdown();
++    NS_RELEASE(gCertVerificationThreadPool);
++  }
++}
++
++
++// If the given PRErrorCode is an overridable certificate error, return which
++// category (trust, time, domain mismatch) it falls in. If it is not
++// overridable, return Nothing.
++Maybe<nsITransportSecurityInfo::OverridableErrorCategory>
++CategorizeCertificateError(PRErrorCode certificateError) {
++  switch (certificateError) {
++    case SEC_ERROR_CA_CERT_INVALID:
++    case SEC_ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED:
++    case SEC_ERROR_EXPIRED_ISSUER_CERTIFICATE:
++    case SEC_ERROR_UNKNOWN_ISSUER:
++    case mozilla::pkix::MOZILLA_PKIX_ERROR_CA_CERT_USED_AS_END_ENTITY:
++    case mozilla::pkix::MOZILLA_PKIX_ERROR_EMPTY_ISSUER_NAME:
++    case mozilla::pkix::MOZILLA_PKIX_ERROR_INADEQUATE_KEY_SIZE:
++    case mozilla::pkix::
++        MOZILLA_PKIX_ERROR_INSUFFICIENT_CERTIFICATE_TRANSPARENCY:
++    case mozilla::pkix::MOZILLA_PKIX_ERROR_MITM_DETECTED:
++    case mozilla::pkix::MOZILLA_PKIX_ERROR_NOT_YET_VALID_ISSUER_CERTIFICATE:
++    case mozilla::pkix::MOZILLA_PKIX_ERROR_SELF_SIGNED_CERT:
++    case mozilla::pkix::MOZILLA_PKIX_ERROR_V1_CERT_USED_AS_CA:
++      return Some(
++          nsITransportSecurityInfo::OverridableErrorCategory::ERROR_TRUST);
++
++    case SSL_ERROR_BAD_CERT_DOMAIN:
++      return Some(
++          nsITransportSecurityInfo::OverridableErrorCategory::ERROR_DOMAIN);
++
++    case SEC_ERROR_EXPIRED_CERTIFICATE:
++    case SEC_ERROR_INVALID_TIME:
++    case mozilla::pkix::MOZILLA_PKIX_ERROR_NOT_YET_VALID_CERTIFICATE:
++      return Some(
++          nsITransportSecurityInfo::OverridableErrorCategory::ERROR_TIME);
++
++    default:
++      break;
++  }
++  return Nothing();
++}
++
++// Helper function to determine if overrides are allowed for this host.
++// Overrides are not allowed for known HSTS hosts or hosts with pinning
++// information. However, IP addresses can never be HSTS hosts and don't have
++// pinning information.
++static nsresult OverrideAllowedForHost(
++    uint64_t aPtrForLog, const nsACString& aHostname,
++    const OriginAttributes& aOriginAttributes, /*out*/ bool& aOverrideAllowed) {
++  aOverrideAllowed = false;
++
++  // If this is an IP address, overrides are allowed, because an IP address is
++  // never an HSTS host. nsISiteSecurityService takes this into account
++  // already, but the real problem here is that calling NS_NewURI with an IPv6
++  // address fails. We do this to avoid that. A more comprehensive fix would be
++  // to have Necko provide an nsIURI to PSM and to use that here (and
++  // everywhere). However, that would be a wide-spanning change.
++  if (net_IsValidIPv6Addr(aHostname)) {
++    aOverrideAllowed = true;
++    return NS_OK;
++  }
++
++  // If this is an HTTP Strict Transport Security host or a pinned host and the
++  // certificate is bad, don't allow overrides (RFC 6797 section 12.1).
++  bool strictTransportSecurityEnabled = false;
++  bool isStaticallyPinned = false;
++  nsCOMPtr<nsISiteSecurityService> sss(do_GetService(NS_SSSERVICE_CONTRACTID));
++  if (!sss) {
++    MOZ_LOG(
++        gPIPNSSLog, LogLevel::Debug,
++        ("[0x%" PRIx64 "] Couldn't get nsISiteSecurityService to check HSTS",
++         aPtrForLog));
++    return NS_ERROR_FAILURE;
++  }
++
++  nsCOMPtr<nsIURI> uri;
++  nsresult rv = NS_NewURI(getter_AddRefs(uri), "https://"_ns + aHostname);
++  if (NS_FAILED(rv)) {
++    MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
++            ("[0x%" PRIx64 "] Creating new URI failed", aPtrForLog));
++    return rv;
++  }
++
++  rv =
++      sss->IsSecureURI(uri, aOriginAttributes, &strictTransportSecurityEnabled);
++  if (NS_FAILED(rv)) {
++    MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
++            ("[0x%" PRIx64 "] checking for HSTS failed", aPtrForLog));
++    return rv;
++  }
++
++  nsCOMPtr<nsIPublicKeyPinningService> pkps =
++      do_GetService(NS_PKPSERVICE_CONTRACTID, &rv);
++  if (!pkps) {
++    MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
++            ("[0x%" PRIx64
++             "] Couldn't get nsIPublicKeyPinningService to check pinning",
++             aPtrForLog));
++    return NS_ERROR_FAILURE;
++  }
++  rv = pkps->HostHasPins(uri, &isStaticallyPinned);
++  if (NS_FAILED(rv)) {
++    MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
++            ("[0x%" PRIx64 "] checking for static pin failed", aPtrForLog));
++    return rv;
++  }
++
++  aOverrideAllowed = !strictTransportSecurityEnabled && !isStaticallyPinned;
++  return NS_OK;
++}
++
++// This function assumes that we will only use the SPDY connection coalescing
++// feature on connections where we have negotiated SPDY using NPN. If we ever
++// talk SPDY without having negotiated it with SPDY, this code will give wrong
++// and perhaps unsafe results.
++//
++// Returns SECSuccess on the initial handshake of all connections, on
++// renegotiations for any connections where we did not negotiate SPDY, or on any
++// SPDY connection where the server's certificate did not change.
++//
++// Prohibit changing the server cert only if we negotiated SPDY,
++// in order to support SPDY's cross-origin connection pooling.
++static SECStatus BlockServerCertChangeForSpdy(
++    NSSSocketControl* socketControl, const UniqueCERTCertificate& serverCert) {
++  if (!socketControl->IsHandshakeCompleted()) {
++    // first handshake on this connection, not a
++    // renegotiation.
++    return SECSuccess;
++  }
++
++  // Filter out sockets that did not neogtiate SPDY via NPN
++  nsCOMPtr<nsITransportSecurityInfo> securityInfo;
++  nsresult rv = socketControl->GetSecurityInfo(getter_AddRefs(securityInfo));
++  MOZ_ASSERT(NS_SUCCEEDED(rv), "GetSecurityInfo() failed during renegotiation");
++  if (NS_FAILED(rv) || !securityInfo) {
++    PR_SetError(SEC_ERROR_LIBRARY_FAILURE, 0);
++    return SECFailure;
++  }
++  nsAutoCString negotiatedNPN;
++  rv = securityInfo->GetNegotiatedNPN(negotiatedNPN);
++  MOZ_ASSERT(NS_SUCCEEDED(rv),
++             "GetNegotiatedNPN() failed during renegotiation");
++
++  if (NS_SUCCEEDED(rv) && !StringBeginsWith(negotiatedNPN, "spdy/"_ns)) {
++    return SECSuccess;
++  }
++  // If GetNegotiatedNPN() failed we will assume spdy for safety's safe
++  if (NS_FAILED(rv)) {
++    MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
++            ("BlockServerCertChangeForSpdy failed GetNegotiatedNPN() call."
++             " Assuming spdy."));
++  }
++
++  // Check to see if the cert has actually changed
++  nsCOMPtr<nsIX509Cert> cert(socketControl->GetServerCert());
++  if (!cert) {
++    PR_SetError(SEC_ERROR_LIBRARY_FAILURE, 0);
++    return SECFailure;
++  }
++  nsTArray<uint8_t> certDER;
++  if (NS_FAILED(cert->GetRawDER(certDER))) {
++    PR_SetError(SEC_ERROR_LIBRARY_FAILURE, 0);
++    return SECFailure;
++  }
++  if (certDER.Length() == serverCert->derCert.len &&
++      memcmp(certDER.Elements(), serverCert->derCert.data, certDER.Length()) ==
++          0) {
++    return SECSuccess;
++  }
++
++  // Report an error - changed cert is confirmed
++  MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
++          ("SPDY refused to allow new cert during renegotiation"));
++  PR_SetError(SSL_ERROR_RENEGOTIATION_NOT_ALLOWED, 0);
++  return SECFailure;
++}
++
++// Note: Takes ownership of |peerCertChain| if SECSuccess is not returned.
++Result AuthCertificate(
++    CertVerifier& certVerifier, void* aPinArg,
++    const nsTArray<uint8_t>& certBytes,
++    const nsTArray<nsTArray<uint8_t>>& peerCertChain,
++    const nsACString& aHostName, const OriginAttributes& aOriginAttributes,
++    const Maybe<nsTArray<uint8_t>>& stapledOCSPResponse,
++    const Maybe<nsTArray<uint8_t>>& sctsFromTLSExtension,
++    const Maybe<DelegatedCredentialInfo>& dcInfo, uint32_t providerFlags,
++    Time time, uint32_t certVerifierFlags,
++    /*out*/ nsTArray<nsTArray<uint8_t>>& builtCertChain,
++    /*out*/ EVStatus& evStatus,
++    /*out*/ CertificateTransparencyInfo& certificateTransparencyInfo,
++    /*out*/ bool& aIsBuiltCertChainRootBuiltInRoot,
++    /*out*/ bool& aMadeOCSPRequests) {
++  CertVerifier::OCSPStaplingStatus ocspStaplingStatus =
++      CertVerifier::OCSP_STAPLING_NEVER_CHECKED;
++  KeySizeStatus keySizeStatus = KeySizeStatus::NeverChecked;
++  PinningTelemetryInfo pinningTelemetryInfo;
++
++  nsTArray<nsTArray<uint8_t>> peerCertsBytes;
++  // Don't include the end-entity certificate.
++  if (!peerCertChain.IsEmpty()) {
++    std::transform(
++        peerCertChain.cbegin() + 1, peerCertChain.cend(),
++        MakeBackInserter(peerCertsBytes),
++        [](const auto& elementArray) { return elementArray.Clone(); });
++  }
++
++  IssuerSources issuerSources;
++  Result rv = certVerifier.VerifySSLServerCert(
++      certBytes, time, aPinArg, aHostName, builtCertChain, certVerifierFlags,
++      Some(std::move(peerCertsBytes)), stapledOCSPResponse,
++      sctsFromTLSExtension, dcInfo, aOriginAttributes, &evStatus,
++      &ocspStaplingStatus, &keySizeStatus, &pinningTelemetryInfo,
++      &certificateTransparencyInfo, &aIsBuiltCertChainRootBuiltInRoot,
++      &aMadeOCSPRequests, &issuerSources);
++
++  return rv;
++}
++
++PRErrorCode AuthCertificateParseResults(
++    uint64_t aPtrForLog, const nsACString& aHostName, int32_t aPort,
++    const OriginAttributes& aOriginAttributes,
++    const nsCOMPtr<nsIX509Cert>& aCert, mozilla::pkix::Time aTime,
++    PRErrorCode aCertVerificationError,
++    /* out */
++    nsITransportSecurityInfo::OverridableErrorCategory&
++        aOverridableErrorCategory) {
++
++  Maybe<nsITransportSecurityInfo::OverridableErrorCategory>
++      maybeOverridableErrorCategory =
++          CategorizeCertificateError(aCertVerificationError);
++  // If this isn't an overridable error, return it now. This will stop the
++  // connection and report the given error.
++  if (!maybeOverridableErrorCategory.isSome()) {
++    return aCertVerificationError;
++  }
++  aOverridableErrorCategory = *maybeOverridableErrorCategory;
++
++  bool overrideAllowed = false;
++  nsresult rv = OverrideAllowedForHost(aPtrForLog, aHostName, aOriginAttributes,
++                                       overrideAllowed);
++  if (NS_FAILED(rv)) {
++    return aCertVerificationError;
++  }
++
++  if (!overrideAllowed) {
++    MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
++            ("[0x%" PRIx64 "] HSTS or pinned host - no overrides allowed",
++             aPtrForLog));
++    return aCertVerificationError;
++  }
++
++  nsCOMPtr<nsICertOverrideService> overrideService =
++      do_GetService(NS_CERTOVERRIDE_CONTRACTID);
++  if (!overrideService) {
++    return aCertVerificationError;
++  }
++  bool haveOverride;
++  bool isTemporaryOverride;
++  rv = overrideService->HasMatchingOverride(aHostName, aPort, aOriginAttributes,
++                                            aCert, &isTemporaryOverride,
++                                            &haveOverride);
++  if (NS_FAILED(rv)) {
++    return aCertVerificationError;
++  }
++  (void)isTemporaryOverride;
++  if (haveOverride) {
++    MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
++            ("[0x%" PRIx64 "] certificate error overridden", aPtrForLog));
++    return 0;
++  }
++
++  return aCertVerificationError;
++}
++
++static nsTArray<nsTArray<uint8_t>> CreateCertBytesArray(
++    const UniqueSECItemArray& aCertChain) {
++  nsTArray<nsTArray<uint8_t>> certsBytes;
++  for (size_t i = 0; i < aCertChain->len; i++) {
++    nsTArray<uint8_t> certBytes;
++    certBytes.AppendElements(aCertChain->items[i].data,
++                             aCertChain->items[i].len);
++    certsBytes.AppendElement(std::move(certBytes));
++  }
++  return certsBytes;
++}
++
++/*static*/
++SECStatus SSLServerCertVerificationJob::Dispatch(
++    uint64_t addrForLogging, void* aPinArg,
++    nsTArray<nsTArray<uint8_t>>&& peerCertChain, const nsACString& aHostName,
++    int32_t aPort, const OriginAttributes& aOriginAttributes,
++    Maybe<nsTArray<uint8_t>>& stapledOCSPResponse,
++    Maybe<nsTArray<uint8_t>>& sctsFromTLSExtension,
++    Maybe<DelegatedCredentialInfo>& dcInfo, uint32_t providerFlags, Time time,
++    uint32_t certVerifierFlags,
++    BaseSSLServerCertVerificationResult* aResultTask) {
++  // Runs on the socket transport thread
++  if (!aResultTask || peerCertChain.IsEmpty()) {
++    MOZ_ASSERT_UNREACHABLE(
++        "must have result task and non-empty peer cert chain");
++    PR_SetError(SEC_ERROR_LIBRARY_FAILURE, 0);
++    return SECFailure;
++  }
++
++  if (!gCertVerificationThreadPool) {
++    PR_SetError(PR_INVALID_STATE_ERROR, 0);
++    return SECFailure;
++  }
++
++  RefPtr<SSLServerCertVerificationJob> job(new SSLServerCertVerificationJob(
++      addrForLogging, aPinArg, std::move(peerCertChain), aHostName, aPort,
++      aOriginAttributes, stapledOCSPResponse, sctsFromTLSExtension, dcInfo,
++      providerFlags, time, certVerifierFlags, aResultTask));
++
++  nsresult nrv = gCertVerificationThreadPool->Dispatch(job, NS_DISPATCH_NORMAL);
++  if (NS_FAILED(nrv)) {
++    // We can't call SetCertVerificationResult here to change
++    // mCertVerificationState because SetCertVerificationResult will call
++    // libssl functions that acquire SSL locks that are already being held at
++    // this point. However, we can set an error with PR_SetError and return
++    // SECFailure, and the correct thing will happen (the error will be
++    // propagated and this connection will be terminated).
++    PRErrorCode error = nrv == NS_ERROR_OUT_OF_MEMORY ? PR_OUT_OF_MEMORY_ERROR
++                                                      : PR_INVALID_STATE_ERROR;
++    PR_SetError(error, 0);
++    return SECFailure;
++  }
++
++  PR_SetError(PR_WOULD_BLOCK_ERROR, 0);
++  return SECWouldBlock;
++}
++
++NS_IMETHODIMP
++SSLServerCertVerificationJob::Run() {
++  // Runs on a cert verification thread and only on parent process.
++  MOZ_ASSERT(XRE_IsParentProcess());
++
++  MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
++          ("[%" PRIx64 "] SSLServerCertVerificationJob::Run", mAddrForLogging));
++
++  RefPtr<SharedCertVerifier> certVerifier(GetDefaultCertVerifier());
++  if (!certVerifier) {
++    // We can't release this off the STS thread because some parts of it
++    // are not threadsafe. Just leak mResultTask.
++    mResultTask.forget().leak();
++    return NS_ERROR_FAILURE;
++  }
++
++  EVStatus evStatus;
++  CertificateTransparencyInfo certificateTransparencyInfo;
++  bool isCertChainRootBuiltInRoot = false;
++  bool madeOCSPRequests = false;
++  nsTArray<nsTArray<uint8_t>> builtChainBytesArray;
++  nsTArray<uint8_t> certBytes(mPeerCertChain.ElementAt(0).Clone());
++  Result result = AuthCertificate(
++      *certVerifier, mPinArg, certBytes, mPeerCertChain, mHostName,
++      mOriginAttributes, mStapledOCSPResponse, mSCTsFromTLSExtension, mDCInfo,
++      mProviderFlags, mTime, mCertVerifierFlags, builtChainBytesArray, evStatus,
++      certificateTransparencyInfo, isCertChainRootBuiltInRoot,
++      madeOCSPRequests);
++
++  if (result == Success) {
++
++    nsresult rv = mResultTask->Dispatch(
++        std::move(builtChainBytesArray), std::move(mPeerCertChain),
++        TransportSecurityInfo::ConvertCertificateTransparencyInfoToStatus(
++            certificateTransparencyInfo),
++        evStatus, true, 0,
++        nsITransportSecurityInfo::OverridableErrorCategory::ERROR_UNSET,
++        isCertChainRootBuiltInRoot, mProviderFlags, madeOCSPRequests);
++    if (NS_FAILED(rv)) {
++      // We can't release this off the STS thread because some parts of it
++      // are not threadsafe. Just leak mResultTask.
++      mResultTask.forget().leak();
++    }
++    return rv;
++  }
++
++  PRErrorCode error = MapResultToPRErrorCode(result);
++  nsITransportSecurityInfo::OverridableErrorCategory overridableErrorCategory =
++      nsITransportSecurityInfo::OverridableErrorCategory::ERROR_UNSET;
++  nsCOMPtr<nsIX509Cert> cert(new nsNSSCertificate(std::move(certBytes)));
++  PRErrorCode finalError = AuthCertificateParseResults(
++      mAddrForLogging, mHostName, mPort, mOriginAttributes, cert, mTime, error,
++      overridableErrorCategory);
++
++  // NB: finalError may be 0 here, in which the connection will continue.
++  nsresult rv = mResultTask->Dispatch(
++      std::move(builtChainBytesArray), std::move(mPeerCertChain),
++      TransportSecurityInfo::ConvertCertificateTransparencyInfoToStatus(
++          certificateTransparencyInfo),
++      EVStatus::NotEV, false, finalError, overridableErrorCategory,
++      // If the certificate verifier returned Result::ERROR_BAD_CERT_DOMAIN,
++      // a chain was built, so isCertChainRootBuiltInRoot is valid and
++      // potentially useful. Otherwise, assume no chain was built.
++      result == Result::ERROR_BAD_CERT_DOMAIN ? isCertChainRootBuiltInRoot
++                                              : false,
++      mProviderFlags, madeOCSPRequests);
++  if (NS_FAILED(rv)) {
++    // We can't release this off the STS thread because some parts of it
++    // are not threadsafe. Just leak mResultTask.
++    mResultTask.forget().leak();
++  }
++  return rv;
++}
++
++// Takes information needed for cert verification, does some consistency
++//  checks and calls SSLServerCertVerificationJob::Dispatch.
++SECStatus AuthCertificateHookInternal(
++    CommonSocketControl* socketControl, const void* aPtrForLogging,
++    const nsACString& hostName, nsTArray<nsTArray<uint8_t>>&& peerCertChain,
++    Maybe<nsTArray<uint8_t>>& stapledOCSPResponse,
++    Maybe<nsTArray<uint8_t>>& sctsFromTLSExtension,
++    Maybe<DelegatedCredentialInfo>& dcInfo, uint32_t providerFlags,
++    uint32_t certVerifierFlags) {
++  // Runs on the socket transport thread
++
++  MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
++          ("[%p] starting AuthCertificateHookInternal\n", aPtrForLogging));
++
++  if (!socketControl || peerCertChain.IsEmpty()) {
++    PR_SetError(PR_INVALID_STATE_ERROR, 0);
++    return SECFailure;
++  }
++
++  bool onSTSThread;
++  nsresult nrv;
++  nsCOMPtr<nsIEventTarget> sts =
++      do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &nrv);
++  if (NS_SUCCEEDED(nrv)) {
++    nrv = sts->IsOnCurrentThread(&onSTSThread);
++  }
++
++  if (NS_FAILED(nrv)) {
++    NS_ERROR("Could not get STS service or IsOnCurrentThread failed");
++    PR_SetError(PR_UNKNOWN_ERROR, 0);
++    return SECFailure;
++  }
++
++  MOZ_ASSERT(onSTSThread);
++
++  if (!onSTSThread) {
++    PR_SetError(PR_INVALID_STATE_ERROR, 0);
++    return SECFailure;
++  }
++
++  uint64_t addr = reinterpret_cast<uintptr_t>(aPtrForLogging);
++  RefPtr resultTask =
++      MakeRefPtr<SSLServerCertVerificationResult>(socketControl);
++
++  if (XRE_IsSocketProcess()) {
++    return RemoteProcessCertVerification(
++        std::move(peerCertChain), hostName, socketControl->GetPort(),
++        socketControl->GetOriginAttributes(), stapledOCSPResponse,
++        sctsFromTLSExtension, dcInfo, providerFlags, certVerifierFlags,
++        resultTask);
++  }
++
++  // We *must* do certificate verification on a background thread because
++  // we need the socket transport thread to be free for our OCSP requests,
++  // and we *want* to do certificate verification on a background thread
++  // because of the performance benefits of doing so.
++  return SSLServerCertVerificationJob::Dispatch(
++      addr, socketControl, std::move(peerCertChain), hostName,
++      socketControl->GetPort(), socketControl->GetOriginAttributes(),
++      stapledOCSPResponse, sctsFromTLSExtension, dcInfo, providerFlags, Now(),
++      certVerifierFlags, resultTask);
++}
++
++// Extracts whatever information we need out of fd (using SSL_*) and passes it
++// to AuthCertificateHookInternal. AuthCertificateHookInternal will call
++// SSLServerCertVerificationJob::Dispatch. SSLServerCertVerificationJob
++// should never do anything with fd except logging.
++SECStatus AuthCertificateHook(void* arg, PRFileDesc* fd, PRBool checkSig,
++                              PRBool isServer) {
++  MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
++          ("[%p] starting AuthCertificateHook\n", fd));
++
++  // Modern libssl always passes PR_TRUE for checkSig, and we have no means of
++  // doing verification without checking signatures.
++  MOZ_ASSERT(checkSig, "AuthCertificateHook: checkSig unexpectedly false");
++
++  // PSM never causes libssl to call this function with PR_TRUE for isServer,
++  // and many things in PSM assume that we are a client.
++  MOZ_ASSERT(!isServer, "AuthCertificateHook: isServer unexpectedly true");
++
++  NSSSocketControl* socketInfo = static_cast<NSSSocketControl*>(arg);
++
++  UniqueCERTCertificate serverCert(SSL_PeerCertificate(fd));
++
++  if (!checkSig || isServer || !socketInfo || !serverCert) {
++    PR_SetError(PR_INVALID_STATE_ERROR, 0);
++    return SECFailure;
++  }
++  socketInfo->SetFullHandshake();
++
++  if (BlockServerCertChangeForSpdy(socketInfo, serverCert) != SECSuccess) {
++    return SECFailure;
++  }
++
++  UniqueSECItemArray peerCertChain;
++  SECStatus rv =
++      SSL_PeerCertificateChainDER(fd, TempPtrToSetter(&peerCertChain));
++  if (rv != SECSuccess) {
++    PR_SetError(PR_INVALID_STATE_ERROR, 0);
++    return SECFailure;
++  }
++  MOZ_ASSERT(peerCertChain,
++             "AuthCertificateHook: peerCertChain unexpectedly null");
++
++  nsTArray<nsTArray<uint8_t>> peerCertsBytes =
++      CreateCertBytesArray(peerCertChain);
++
++  // SSL_PeerStapledOCSPResponses will never return a non-empty response if
++  // OCSP stapling wasn't enabled because libssl wouldn't have let the server
++  // return a stapled OCSP response.
++  // We don't own these pointers.
++  const SECItemArray* csa = SSL_PeerStapledOCSPResponses(fd);
++  Maybe<nsTArray<uint8_t>> stapledOCSPResponse;
++  // we currently only support single stapled responses
++  if (csa && csa->len == 1) {
++    stapledOCSPResponse.emplace();
++    stapledOCSPResponse->SetCapacity(csa->items[0].len);
++    stapledOCSPResponse->AppendElements(csa->items[0].data, csa->items[0].len);
++  }
++
++  Maybe<nsTArray<uint8_t>> sctsFromTLSExtension;
++  const SECItem* sctsFromTLSExtensionSECItem = SSL_PeerSignedCertTimestamps(fd);
++  if (sctsFromTLSExtensionSECItem) {
++    sctsFromTLSExtension.emplace();
++    sctsFromTLSExtension->SetCapacity(sctsFromTLSExtensionSECItem->len);
++    sctsFromTLSExtension->AppendElements(sctsFromTLSExtensionSECItem->data,
++                                         sctsFromTLSExtensionSECItem->len);
++  }
++
++  uint32_t providerFlags = 0;
++  socketInfo->GetProviderFlags(&providerFlags);
++
++  uint32_t certVerifierFlags = 0;
++  if (!StaticPrefs::security_ssl_enable_ocsp_stapling() ||
++      !StaticPrefs::security_ssl_enable_ocsp_must_staple()) {
++    certVerifierFlags |= CertVerifier::FLAG_TLS_IGNORE_STATUS_REQUEST;
++  }
++
++  // Get DC information
++  Maybe<DelegatedCredentialInfo> dcInfo;
++  SSLPreliminaryChannelInfo channelPreInfo;
++  rv = SSL_GetPreliminaryChannelInfo(fd, &channelPreInfo,
++                                     sizeof(channelPreInfo));
++  if (rv != SECSuccess) {
++    PR_SetError(PR_INVALID_STATE_ERROR, 0);
++    return SECFailure;
++  }
++  if (channelPreInfo.peerDelegCred) {
++    dcInfo.emplace(DelegatedCredentialInfo(channelPreInfo.signatureScheme,
++                                           channelPreInfo.authKeyBits));
++  }
++
++  // If we configured an ECHConfig and NSS returned the public name
++  // for verification, ECH was rejected. Proceed, verifying to the
++  // public name. The result determines how NSS will fail (i.e. with
++  // any provided retry_configs if successful). See draft-ietf-tls-esni-08.
++  nsCString echConfig;
++  nsresult nsrv = socketInfo->GetEchConfig(echConfig);
++  bool verifyToEchPublicName =
++      NS_SUCCEEDED(nsrv) && echConfig.Length() && channelPreInfo.echPublicName;
++
++  const nsCString echPublicName(channelPreInfo.echPublicName);
++  const nsACString& hostname =
++      verifyToEchPublicName ? echPublicName : socketInfo->GetHostName();
++  socketInfo->SetCertVerificationWaiting();
++  rv = AuthCertificateHookInternal(socketInfo, static_cast<const void*>(fd),
++                                   hostname, std::move(peerCertsBytes),
++                                   stapledOCSPResponse, sctsFromTLSExtension,
++                                   dcInfo, providerFlags, certVerifierFlags);
++  return rv;
++}
++
++// Takes information needed for cert verification, does some consistency
++// checks and calls SSLServerCertVerificationJob::Dispatch.
++// This function is used for Quic.
++SECStatus AuthCertificateHookWithInfo(
++    CommonSocketControl* socketControl, const nsACString& aHostName,
++    const void* aPtrForLogging, nsTArray<nsTArray<uint8_t>>&& peerCertChain,
++    Maybe<nsTArray<nsTArray<uint8_t>>>& stapledOCSPResponses,
++    Maybe<nsTArray<uint8_t>>& sctsFromTLSExtension, uint32_t providerFlags) {
++  if (peerCertChain.IsEmpty()) {
++    PR_SetError(PR_INVALID_STATE_ERROR, 0);
++    return SECFailure;
++  }
++
++  // we currently only support single stapled responses
++  Maybe<nsTArray<uint8_t>> stapledOCSPResponse;
++  if (stapledOCSPResponses && (stapledOCSPResponses->Length() == 1)) {
++    stapledOCSPResponse.emplace(stapledOCSPResponses->ElementAt(0).Clone());
++  }
++
++  uint32_t certVerifierFlags = 0;
++  if (!StaticPrefs::security_ssl_enable_ocsp_stapling() ||
++      !StaticPrefs::security_ssl_enable_ocsp_must_staple()) {
++    certVerifierFlags |= CertVerifier::FLAG_TLS_IGNORE_STATUS_REQUEST;
++  }
++
++  // Need to update Quic stack to reflect the PreliminaryInfo fields
++  // for Delegated Credentials.
++  Maybe<DelegatedCredentialInfo> dcInfo;
++
++  return AuthCertificateHookInternal(socketControl, aPtrForLogging, aHostName,
++                                     std::move(peerCertChain),
++                                     stapledOCSPResponse, sctsFromTLSExtension,
++                                     dcInfo, providerFlags, certVerifierFlags);
++}
++
++NS_IMPL_ISUPPORTS_INHERITED0(SSLServerCertVerificationResult, Runnable)
++
++SSLServerCertVerificationResult::SSLServerCertVerificationResult(
++    CommonSocketControl* socketControl)
++    : Runnable("psm::SSLServerCertVerificationResult"),
++      mSocketControl(socketControl),
++      mCertificateTransparencyStatus(0),
++      mEVStatus(EVStatus::NotEV),
++      mSucceeded(false),
++      mFinalError(0),
++      mOverridableErrorCategory(
++          nsITransportSecurityInfo::OverridableErrorCategory::ERROR_UNSET),
++      mIsBuiltCertChainRootBuiltInRoot(false),
++      mProviderFlags(0),
++      mMadeOCSPRequests(false) {}
++
++nsresult SSLServerCertVerificationResult::Dispatch(
++    nsTArray<nsTArray<uint8_t>>&& aBuiltChain,
++    nsTArray<nsTArray<uint8_t>>&& aPeerCertChain,
++    uint16_t aCertificateTransparencyStatus, EVStatus aEVStatus,
++    bool aSucceeded, PRErrorCode aFinalError,
++    nsITransportSecurityInfo::OverridableErrorCategory
++        aOverridableErrorCategory,
++    bool aIsBuiltCertChainRootBuiltInRoot, uint32_t aProviderFlags,
++    bool aMadeOCSPRequests) {
++  mBuiltChain = std::move(aBuiltChain);
++  mPeerCertChain = std::move(aPeerCertChain);
++  mCertificateTransparencyStatus = aCertificateTransparencyStatus;
++  mEVStatus = aEVStatus;
++  mSucceeded = aSucceeded;
++  mFinalError = aFinalError;
++  mOverridableErrorCategory = aOverridableErrorCategory;
++  mIsBuiltCertChainRootBuiltInRoot = aIsBuiltCertChainRootBuiltInRoot;
++  mProviderFlags = aProviderFlags;
++  mMadeOCSPRequests = aMadeOCSPRequests;
++
++  if (mSucceeded &&
++      (mBuiltChain.IsEmpty() || mFinalError != 0 ||
++       mOverridableErrorCategory !=
++           nsITransportSecurityInfo::OverridableErrorCategory::ERROR_UNSET)) {
++    MOZ_ASSERT_UNREACHABLE(
++        "if certificate verification succeeded without overridden errors, the "
++        "built chain shouldn't be empty and any error bits should be unset");
++    mSucceeded = false;
++    mFinalError = SEC_ERROR_LIBRARY_FAILURE;
++  }
++  // Note that mSucceeded can be false while mFinalError is 0, in which case
++  // the connection will proceed.
++  if (!mSucceeded && mPeerCertChain.IsEmpty()) {
++    MOZ_ASSERT_UNREACHABLE(
++        "if certificate verification failed, the peer chain shouldn't be "
++        "empty");
++    mFinalError = SEC_ERROR_LIBRARY_FAILURE;
++  }
++
++  nsresult rv;
++  nsCOMPtr<nsIEventTarget> stsTarget =
++      do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
++  MOZ_ASSERT(stsTarget, "Failed to get socket transport service event target");
++  if (!stsTarget) {
++    // This has to be released on STS; just leak it
++    mSocketControl.forget().leak();
++    return NS_ERROR_FAILURE;
++  }
++  rv = stsTarget->Dispatch(this, NS_DISPATCH_NORMAL);
++  MOZ_ASSERT(NS_SUCCEEDED(rv),
++             "Failed to dispatch SSLServerCertVerificationResult");
++  return rv;
++}
++
++NS_IMETHODIMP
++SSLServerCertVerificationResult::Run() {
++#ifdef DEBUG
++  bool onSTSThread = false;
++  nsresult nrv;
++  nsCOMPtr<nsIEventTarget> sts =
++      do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &nrv);
++  if (NS_SUCCEEDED(nrv)) {
++    nrv = sts->IsOnCurrentThread(&onSTSThread);
++  }
++
++  MOZ_ASSERT(onSTSThread);
++#endif
++
++  mSocketControl->SetMadeOCSPRequests(mMadeOCSPRequests);
++  mSocketControl->SetIsBuiltCertChainRootBuiltInRoot(
++      mIsBuiltCertChainRootBuiltInRoot);
++  mSocketControl->SetCertificateTransparencyStatus(
++      mCertificateTransparencyStatus);
++
++  if (mSucceeded) {
++    MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
++            ("SSLServerCertVerificationResult::Run setting NEW cert"));
++    nsTArray<uint8_t> certBytes(mBuiltChain.ElementAt(0).Clone());
++    nsCOMPtr<nsIX509Cert> cert(new nsNSSCertificate(std::move(certBytes)));
++    mSocketControl->SetServerCert(cert, mEVStatus);
++    mSocketControl->SetSucceededCertChain(std::move(mBuiltChain));
++  } else {
++    nsTArray<uint8_t> certBytes(mPeerCertChain.ElementAt(0).Clone());
++    nsCOMPtr<nsIX509Cert> cert(new nsNSSCertificate(std::move(certBytes)));
++    mSocketControl->SetServerCert(cert, EVStatus::NotEV);
++    if (mOverridableErrorCategory !=
++        nsITransportSecurityInfo::OverridableErrorCategory::ERROR_UNSET) {
++      mSocketControl->SetStatusErrorBits(mOverridableErrorCategory);
++    }
++  }
++
++  mSocketControl->SetHandshakeCertificates(std::move(mPeerCertChain));
++  mSocketControl->SetCertVerificationResult(mFinalError);
++  // Release this reference to the socket control so that it will be freed on
++  // the socket thread.
++  mSocketControl = nullptr;
++  return NS_OK;
++}
++
++}  // namespace psm
++}  // namespace mozilla
 diff --git a/security/manager/ssl/TLSClientAuthCertSelection.cpp b/security/manager/ssl/TLSClientAuthCertSelection.cpp
 index d8147b51e121944368e870c48b05a58f8b24f389..ab70e442a8c9a90381edf15f62adc149ba96155e 100644
 --- a/security/manager/ssl/TLSClientAuthCertSelection.cpp
@@ -201627,7 +204094,7 @@ index 3900c8f6dc5a33c63b0df6490f345c4b3dd35e37..fefb637f3105f451f4051471e529d416
    // We don't care about this promise because the operation is actually sync.
    RefPtr<StorageAccessAPIHelper::ParentAccessGrantPromise> promise =
 diff --git a/toolkit/components/antitracking/ContentBlockingLog.cpp b/toolkit/components/antitracking/ContentBlockingLog.cpp
-index 393a78da4169de4dfb32fc0405280c96860a0dc7..e3eb6645430189f759b4a854a710dea9999ba2a3 100644
+index 393a78da4169de4dfb32fc0405280c96860a0dc7..ec7381a51172f7a3f01c73b09d432eb902cd2da7 100644
 --- a/toolkit/components/antitracking/ContentBlockingLog.cpp
 +++ b/toolkit/components/antitracking/ContentBlockingLog.cpp
 @@ -24,7 +24,6 @@
@@ -201700,10 +204167,15 @@ index 393a78da4169de4dfb32fc0405280c96860a0dc7..e3eb6645430189f759b4a854a710dea9
  }
  
  void ContentBlockingLog::ReportEmailTrackingLog(
-@@ -467,27 +441,6 @@ void ContentBlockingLog::ReportEmailTrackingLog(
-   uint32_t level1Count = level1SiteSet.Count();
-   uint32_t level2Count = level2SiteSet.Count();
+@@ -462,32 +436,7 @@ void ContentBlockingLog::ReportEmailTrackingLog(
+     });
+   }
  
+-  bool isTopEmailWebApp =
+-      aFirstPartyPrincipal->IsURIInList(*gEmailWebAppDomainsPref);
+-  uint32_t level1Count = level1SiteSet.Count();
+-  uint32_t level2Count = level2SiteSet.Count();
+-
 -  glean::contentblocking::email_tracker_embedded_per_tab
 -      .EnumGet(isTopEmailWebApp
 -                   ? glean::contentblocking::EmailTrackerEmbeddedPerTabLabel::
@@ -201725,6 +204197,7 @@ index 393a78da4169de4dfb32fc0405280c96860a0dc7..e3eb6645430189f759b4a854a710dea9
 -                   : glean::contentblocking::EmailTrackerEmbeddedPerTabLabel::
 -                         eAllNormal)
 -      .AccumulateSingleSample(level1Count + level2Count);
++
  }
  
  ContentBlockingLog::OriginEntry* ContentBlockingLog::RecordLogInternal(
@@ -202222,7 +204695,7 @@ index 9673bfc39bd6c2e0d078662a35b6baa1bf4d6361..992abe5c4c7b8de474006d57eb16b3fd
              // today is a date "YYY-MM-DD" which can compare with what is
              // already saved in the database.
 diff --git a/toolkit/components/antitracking/URLQueryStringStripper.cpp b/toolkit/components/antitracking/URLQueryStringStripper.cpp
-index e52e29497ce482ad9f5ec503c44dcf4b3e2b3df1..d2cece90f9ea7203aa5068e28720bc7ed2f78233 100644
+index e52e29497ce482ad9f5ec503c44dcf4b3e2b3df1..7a90f82dfaa8d5acda542de060c06de6ec7d032b 100644
 --- a/toolkit/components/antitracking/URLQueryStringStripper.cpp
 +++ b/toolkit/components/antitracking/URLQueryStringStripper.cpp
 @@ -8,7 +8,6 @@
@@ -202233,7 +204706,7 @@ index e52e29497ce482ad9f5ec503c44dcf4b3e2b3df1..d2cece90f9ea7203aa5068e28720bc7e
  
  #include "nsIEffectiveTLDService.h"
  #include "nsISupportsImpl.h"
-@@ -86,9 +85,6 @@ URLQueryStringStripper::StripForCopyOrShare(nsIURI* aURI,
+@@ -86,30 +85,10 @@ URLQueryStringStripper::StripForCopyOrShare(nsIURI* aURI,
                                              /* aStripNestedURIs = */ false);
    NS_ENSURE_SUCCESS(rv, rv);
  
@@ -202243,16 +204716,28 @@ index e52e29497ce482ad9f5ec503c44dcf4b3e2b3df1..d2cece90f9ea7203aa5068e28720bc7e
    if (!aStripCount) {
      return NS_OK;
    }
-@@ -107,8 +103,6 @@ URLQueryStringStripper::StripForCopyOrShare(nsIURI* aURI,
-   NS_ENSURE_SUCCESS(rv, rv);
  
-   uint32_t lengthDiff = specOriginalURI.Length() - specStrippedURI.Length();
+-  // To calculate difference in length of the URL
+-  // after stripping occurs for Telemetry
+-  nsAutoCString specOriginalURI;
+-  nsAutoCString specStrippedURI;
+-
+-  rv = aURI->GetDisplaySpec(specOriginalURI);
+-  NS_ENSURE_SUCCESS(rv, rv);
+-
+-  MOZ_ASSERT(*strippedURI);
+-
+-  rv = (*strippedURI)->GetDisplaySpec(specStrippedURI);
+-  NS_ENSURE_SUCCESS(rv, rv);
+-
+-  uint32_t lengthDiff = specOriginalURI.Length() - specStrippedURI.Length();
 -  glean::contentblocking::strip_on_share_length_decrease.AccumulateSingleSample(
 -      lengthDiff);
- 
+-
    return NS_OK;
  }
-@@ -290,8 +284,6 @@ nsresult URLQueryStringStripper::StripQueryString(nsIURI* aURI,
+ 
+@@ -290,8 +269,6 @@ nsresult URLQueryStringStripper::StripQueryString(nsIURI* aURI,
        // Calls for any other query params will be discarded.
        nsAutoCString telemetryLabel("param_");
        telemetryLabel.Append(lowerCaseName);
@@ -205298,7 +207783,7 @@ index cdba96aaf78ad3026ab246be01dfab4cb19a7a33..4979ba8911d6ed9a039cbe8e78dc2cf6
  #include "mozilla/WeakPtr.h"
  #include "nsIClipboard.h"
 diff --git a/toolkit/components/contentanalysis/ExternalAgentBackend.cpp b/toolkit/components/contentanalysis/ExternalAgentBackend.cpp
-index b88fb20161a269e7851306dd78a7663239cae22f..587588e22aa4ae80096fe3a035f97eba53d4c1ff 100644
+index b88fb20161a269e7851306dd78a7663239cae22f..f7c617e645c585a7385e69aa3b2c4461ec82bc43 100644
 --- a/toolkit/components/contentanalysis/ExternalAgentBackend.cpp
 +++ b/toolkit/components/contentanalysis/ExternalAgentBackend.cpp
 @@ -14,7 +14,6 @@
@@ -205309,7 +207794,23 @@ index b88fb20161a269e7851306dd78a7663239cae22f..587588e22aa4ae80096fe3a035f97eba
  #include "nsIObserverService.h"
  #include "nsString.h"
  #include "nsThreadPool.h"
-@@ -383,9 +382,6 @@ nsresult ExternalAgentBackend::CreateContentAnalysisClient(
+@@ -44,15 +43,6 @@ namespace {
+ 
+ const char* kPipePathNamePref = "browser.contentanalysis.pipe_path_name";
+ const char* kClientSignature = "browser.contentanalysis.client_signature";
+-const char* kAgentNamePref = "browser.contentanalysis.agent_name";
+-const char* kInterceptionPointPrefNames[] = {
+-    "browser.contentanalysis.interception_point.clipboard.enabled",
+-    "browser.contentanalysis.interception_point.download.enabled",
+-    "browser.contentanalysis.interception_point.drag_and_drop.enabled",
+-    "browser.contentanalysis.interception_point.file_upload.enabled",
+-    "browser.contentanalysis.interception_point.print.enabled",
+-};
+-
+ // Allow up to this many threads to be concurrently engaged in synchronous
+ // communcations with the agent.  That limit is set by
+ // browser.contentanalysis.max_connections but is clamped to not exceed
+@@ -383,9 +373,6 @@ nsresult ExternalAgentBackend::CreateContentAnalysisClient(
            "Got mismatched content analysis client signature! All content "
            "analysis operations will fail.");
        nsresult rv = NS_ERROR_INVALID_SIGNATURE;
@@ -205319,7 +207820,7 @@ index b88fb20161a269e7851306dd78a7663239cae22f..587588e22aa4ae80096fe3a035f97eba
        NS_DispatchToMainThread(
            NS_NewRunnableFunction(__func__, [self = RefPtr{this}, rv]() {
              AssertIsOnMainThread();
-@@ -408,9 +404,6 @@ nsresult ExternalAgentBackend::CreateContentAnalysisClient(
+@@ -408,9 +395,6 @@ nsresult ExternalAgentBackend::CreateContentAnalysisClient(
          } else {
            nsresult promiseResult = isShutDown ? NS_ERROR_ILLEGAL_DURING_SHUTDOWN
                                                : NS_ERROR_CONNECTION_REFUSED;
@@ -205329,9 +207830,11 @@ index b88fb20161a269e7851306dd78a7663239cae22f..587588e22aa4ae80096fe3a035f97eba
            self->mClientPromise->Reject(promiseResult, __func__);
          }
          self->mCreatingClient = false;
-@@ -529,10 +522,8 @@ nsresult ExternalAgentBackend::CreateClientIfNecessary(
+@@ -527,12 +511,9 @@ nsresult ExternalAgentBackend::CreateClientIfNecessary(
+   nsString clientSignature;
+   // It's OK if this fails, we will default to the empty string.
    Preferences::GetString(kClientSignature, clientSignature);
-   RecordConnectionSettingsTelemetry(clientSignature);
+-  RecordConnectionSettingsTelemetry(clientSignature);
    LOGD("Dispatching background task to create Content Analysis client");
 -  glean::content_analysis::connection_attempt.Add();
    if (aForceCreate) {
@@ -205340,7 +207843,7 @@ index b88fb20161a269e7851306dd78a7663239cae22f..587588e22aa4ae80096fe3a035f97eba
    }
    rv = NS_DispatchBackgroundTask(NS_NewCancelableRunnableFunction(
        "ExternalAgentBackend::CreateContentAnalysisClient",
-@@ -542,9 +533,6 @@ nsresult ExternalAgentBackend::CreateClientIfNecessary(
+@@ -542,68 +523,12 @@ nsresult ExternalAgentBackend::CreateClientIfNecessary(
              std::move(pipePathName), std::move(clientSignature), isPerUser);
        }));
    if (NS_WARN_IF(NS_FAILED(rv))) {
@@ -205350,52 +207853,66 @@ index b88fb20161a269e7851306dd78a7663239cae22f..587588e22aa4ae80096fe3a035f97eba
      mClientPromise->Reject(rv, __func__);
      return rv;
    }
-@@ -557,7 +545,6 @@ void ExternalAgentBackend::RecordConnectionSettingsTelemetry(
-   {
-     nsCString agentName;
-     Preferences::GetCString(kAgentNamePref, agentName);
+   return NS_OK;
+ }
+ 
+-void ExternalAgentBackend::RecordConnectionSettingsTelemetry(
+-    const nsString& aClientSignature) {
+-  AssertIsOnMainThread();
+-  {
+-    nsCString agentName;
+-    Preferences::GetCString(kAgentNamePref, agentName);
 -    glean::content_analysis::agent_name.Set(agentName);
-   }
-   AutoTArray<nsCString, 1> interceptionPointsOff;
-   for (const char* interceptionPointPrefName : kInterceptionPointPrefNames) {
-@@ -569,21 +556,9 @@ void ExternalAgentBackend::RecordConnectionSettingsTelemetry(
-     }
-   }
-   if (!interceptionPointsOff.IsEmpty()) {
+-  }
+-  AutoTArray<nsCString, 1> interceptionPointsOff;
+-  for (const char* interceptionPointPrefName : kInterceptionPointPrefNames) {
+-    bool interceptionPointPrefValue = false;
+-    Preferences::GetBool(interceptionPointPrefName,
+-                         &interceptionPointPrefValue);
+-    if (!interceptionPointPrefValue) {
+-      interceptionPointsOff.AppendElement(interceptionPointPrefName);
+-    }
+-  }
+-  if (!interceptionPointsOff.IsEmpty()) {
 -    glean::content_analysis::interception_points_turned_off.Set(
 -        interceptionPointsOff);
-   }
+-  }
 -  glean::content_analysis::show_blocked_result.Set(
 -      StaticPrefs::browser_contentanalysis_show_blocked_result());
 -  glean::content_analysis::default_result.Set(
 -      StaticPrefs::browser_contentanalysis_default_result());
 -  glean::content_analysis::timeout_result.Set(
 -      StaticPrefs::browser_contentanalysis_timeout_result());
-   if (!aClientSignature.IsEmpty()) {
+-  if (!aClientSignature.IsEmpty()) {
 -    glean::content_analysis::client_signature.Set(
 -        NS_ConvertUTF16toUTF8(aClientSignature));
-   }
+-  }
 -  glean::content_analysis::bypass_for_same_tab_operations.Set(
 -      StaticPrefs::browser_contentanalysis_bypass_for_same_tab_operations());
-   {
-     nsCString allowUrlRegexList;
-     Preferences::GetCString(kAllowUrlPref, allowUrlRegexList);
-@@ -593,14 +568,10 @@ void ExternalAgentBackend::RecordConnectionSettingsTelemetry(
-     // least we have a test around this so we can update this value if the
-     // default changes.
-     const char* defaultAllowUrlRegexList = "^about:(?!blank|srcdoc).*";
+-  {
+-    nsCString allowUrlRegexList;
+-    Preferences::GetCString(kAllowUrlPref, allowUrlRegexList);
+-    // Unfortunately because of the way enterprise policies set and lock prefs,
+-    // we can't check if the value is different than the default in
+-    // StaticPrefList.yaml, and instead we have to duplicate that value here. At
+-    // least we have a test around this so we can update this value if the
+-    // default changes.
+-    const char* defaultAllowUrlRegexList = "^about:(?!blank|srcdoc).*";
 -    glean::content_analysis::allow_url_regex_list_set.Set(
 -        !allowUrlRegexList.Equals(defaultAllowUrlRegexList));
-   }
-   {
-     nsCString denyUrlRegexList;
-     Preferences::GetCString(kDenyUrlPref, denyUrlRegexList);
+-  }
+-  {
+-    nsCString denyUrlRegexList;
+-    Preferences::GetCString(kDenyUrlPref, denyUrlRegexList);
 -    glean::content_analysis::deny_url_regex_list_set.Set(
 -        !denyUrlRegexList.IsEmpty());
-   }
- }
- 
-@@ -799,15 +770,12 @@ nsresult ExternalAgentBackend::Analyze(
+-  }
+-}
+-
+ nsresult ExternalAgentBackend::EnsureReady() {
+   AssertIsOnMainThread();
+   return CreateClientIfNecessary();
+@@ -799,15 +724,12 @@ nsresult ExternalAgentBackend::Analyze(
          content_analysis::sdk::AnalysisConnector_Name(
              pbRequest.analysis_connector())
              .c_str());
@@ -205411,7 +207928,7 @@ index b88fb20161a269e7851306dd78a7663239cae22f..587588e22aa4ae80096fe3a035f97eba
    }
  
    CallClientWithRetry<std::nullptr_t>(
-@@ -892,9 +860,6 @@ Result<std::nullptr_t, nsresult> ExternalAgentBackend::DoAnalyzeRequest(
+@@ -892,9 +814,6 @@ Result<std::nullptr_t, nsresult> ExternalAgentBackend::DoAnalyzeRequest(
        content_analysis::sdk::AnalysisConnector_Name(
            aRequest.analysis_connector())
            .c_str());
@@ -205421,7 +207938,7 @@ index b88fb20161a269e7851306dd78a7663239cae22f..587588e22aa4ae80096fe3a035f97eba
    {
      // Insert this into the map before calling Send() because another thread
      // calling Send() may get a response before our Send() call finishes.
-@@ -906,7 +871,7 @@ Result<std::nullptr_t, nsresult> ExternalAgentBackend::DoAnalyzeRequest(
+@@ -906,7 +825,7 @@ Result<std::nullptr_t, nsresult> ExternalAgentBackend::DoAnalyzeRequest(
          nsCString(aRequest.request_token()),
          MakeUnique<ExternalAgentBackend::BasicRequestInfo>(
              ExternalAgentBackend::BasicRequestInfo{
@@ -205430,7 +207947,7 @@ index b88fb20161a269e7851306dd78a7663239cae22f..587588e22aa4ae80096fe3a035f97eba
                  aAutoAcknowledge, std::move(aPrintDataHandle)}));
    }
  
-@@ -924,9 +889,6 @@ Result<std::nullptr_t, nsresult> ExternalAgentBackend::DoAnalyzeRequest(
+@@ -924,9 +843,6 @@ Result<std::nullptr_t, nsresult> ExternalAgentBackend::DoAnalyzeRequest(
        entry = map->Extract(nsCString(aRequest.request_token()));
      }
      if (entry.isSome()) {
@@ -205440,7 +207957,7 @@ index b88fb20161a269e7851306dd78a7663239cae22f..587588e22aa4ae80096fe3a035f97eba
      }
  
      return Err(NS_ERROR_FAILURE);
-@@ -986,9 +948,6 @@ void ExternalAgentBackend::HandleResponseFromAgent(
+@@ -986,9 +902,6 @@ void ExternalAgentBackend::HandleResponseFromAgent(
            // We have no hope of doing anything useful, so just early return.
            return;
          }
@@ -265636,7 +268153,7 @@ index 3b1301546c515a9c8d069f493f6e214954830cd7..00000000000000000000000000000000
 -      - safebrowsing-telemetry@mozilla.org
 -    expires: never
 diff --git a/toolkit/components/url-classifier/nsUrlClassifierDBService.cpp b/toolkit/components/url-classifier/nsUrlClassifierDBService.cpp
-index 02a2030c2480ccc9c2fa007239025d1e563c03b5..b0be8608289cb632a744c7cf50192f638cbf0381 100644
+index 02a2030c2480ccc9c2fa007239025d1e563c03b5..7b7be70ebc97fe37015ce5410aec37ebc595d762 100644
 --- a/toolkit/components/url-classifier/nsUrlClassifierDBService.cpp
 +++ b/toolkit/components/url-classifier/nsUrlClassifierDBService.cpp
 @@ -32,7 +32,6 @@
@@ -265665,16 +268182,38 @@ index 02a2030c2480ccc9c2fa007239025d1e563c03b5..b0be8608289cb632a744c7cf50192f63
    }
  
    return NS_OK;
-@@ -848,8 +843,6 @@ nsresult nsUrlClassifierDBServiceWorker::NotifyUpdateObserver(
+@@ -828,30 +823,6 @@ nsresult nsUrlClassifierDBServiceWorker::NotifyUpdateObserver(
  
-   // Do not record telemetry for testing tables.
-   if (!provider.EqualsLiteral(TESTING_TABLE_PROVIDER_NAME)) {
+   mUpdateStatus = aUpdateStatus;
+ 
+-  nsUrlClassifierUtils* urlUtil = nsUrlClassifierUtils::GetInstance();
+-  if (NS_WARN_IF(!urlUtil)) {
+-    return NS_ERROR_FAILURE;
+-  }
+-
+-  nsCString provider;
+-  // Assume that all the tables in update should have the same provider.
+-  urlUtil->GetTelemetryProvider(mUpdateTables.SafeElementAt(0, ""_ns),
+-                                provider);
+-
+-  nsresult updateStatus = mUpdateStatus;
+-  if (NS_FAILED(mUpdateStatus)) {
+-    updateStatus =
+-        NS_ERROR_GET_MODULE(mUpdateStatus) == NS_ERROR_MODULE_URL_CLASSIFIER
+-            ? mUpdateStatus
+-            : NS_ERROR_UC_UPDATE_UNKNOWN;
+-  }
+-
+-  // Do not record telemetry for testing tables.
+-  if (!provider.EqualsLiteral(TESTING_TABLE_PROVIDER_NAME)) {
 -    glean::urlclassifier::update_error.Get(provider).AccumulateSingleSample(
 -        NS_ERROR_GET_CODE(updateStatus));
-   }
- 
+-  }
+-
    MutexAutoLock lock(mUpdateObserverLock);
-@@ -1455,17 +1448,11 @@ nsresult nsUrlClassifierHashCompleterBase::OnAllCompletionsFinished() {
+ 
+   if (!mUpdateObserver) {
+@@ -1455,17 +1426,11 @@ nsresult nsUrlClassifierHashCompleterBase::OnAllCompletionsFinished() {
      if (!result->Confirmed()) {
        LOG(("Skipping result %s from table %s (not confirmed)",
             result->PartialHashHex().get(), result->mTableName.get()));
@@ -265692,7 +268231,7 @@ index 02a2030c2480ccc9c2fa007239025d1e563c03b5..b0be8608289cb632a744c7cf50192f63
  
      if (tables.IndexOf(result->mTableName) == nsTArray<nsCString>::NoIndex) {
        tables.AppendElement(result->mTableName);
-@@ -1752,32 +1739,6 @@ nsresult nsUrlClassifierRealTimeLookupHandler::HandleRealTimeLookupComplete(
+@@ -1752,32 +1717,6 @@ nsresult nsUrlClassifierRealTimeLookupHandler::HandleRealTimeLookupComplete(
  
    bool hasGlobalCacheHit = aResults && !aResults->IsEmpty();
  
@@ -265725,7 +268264,7 @@ index 02a2030c2480ccc9c2fa007239025d1e563c03b5..b0be8608289cb632a744c7cf50192f63
    // Notify observers about GlobalCache lookup result (for testing).
    if (mDebugEnabled) {
      NS_DispatchToMainThread(NS_NewRunnableFunction(
-@@ -2297,17 +2258,9 @@ ThreatHitReportListener::OnStopRequest(nsIRequest* aRequest, nsresult aStatus) {
+@@ -2297,17 +2236,9 @@ ThreatHitReportListener::OnStopRequest(nsIRequest* aRequest, nsresult aStatus) {
    nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(aRequest);
    NS_ENSURE_TRUE(httpChannel, aStatus);
  
@@ -265743,7 +268282,7 @@ index 02a2030c2480ccc9c2fa007239025d1e563c03b5..b0be8608289cb632a744c7cf50192f63
  
    if (LOG_ENABLED()) {
      nsAutoCString errorName;
-@@ -2803,8 +2756,6 @@ nsresult nsUrlClassifierDBService::Shutdown() {
+@@ -2803,8 +2734,6 @@ nsresult nsUrlClassifierDBService::Shutdown() {
      return NS_OK;
    }
  
@@ -265752,7 +268291,7 @@ index 02a2030c2480ccc9c2fa007239025d1e563c03b5..b0be8608289cb632a744c7cf50192f63
    mCompleters.Clear();
  
    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-@@ -2949,9 +2900,6 @@ nsUrlClassifierDBService::AsyncClassifyLocalWithFeatures(
+@@ -2949,9 +2878,6 @@ nsUrlClassifierDBService::AsyncClassifyLocalWithFeatures(
      return NS_OK;
    }
  
@@ -265762,7 +268301,7 @@ index 02a2030c2480ccc9c2fa007239025d1e563c03b5..b0be8608289cb632a744c7cf50192f63
    // Let's keep the features alive and release them on the correct thread.
    RefPtr<FeatureHolder> holder =
        FeatureHolder::Create(aURI, aFeatures, aListType);
-@@ -2968,15 +2916,12 @@ nsUrlClassifierDBService::AsyncClassifyLocalWithFeatures(
+@@ -2968,15 +2894,12 @@ nsUrlClassifierDBService::AsyncClassifyLocalWithFeatures(
  
    nsCOMPtr<nsIRunnable> r = NS_NewRunnableFunction(
        "nsUrlClassifierDBService::AsyncClassifyLocalWithFeatures",
@@ -284312,60 +286851,6 @@ index 94810b38ce02f2d7969219b8d13ba4e86d3d3732..e462f90ffbfe701751a40acf7a56e061
    return NS_OK;
  }
  
-diff --git a/xpcom/base/CycleCollectorStats.cpp b/xpcom/base/CycleCollectorStats.cpp
-index c8ed89246d864f0869cca0a73c87ede245bef694..78b3eb9b962c6ee4def31db1489159331b4c88de 100644
---- a/xpcom/base/CycleCollectorStats.cpp
-+++ b/xpcom/base/CycleCollectorStats.cpp
-@@ -12,7 +12,6 @@
- #include "mozilla/BaseProfilerMarkersPrerequisites.h"
- #include "mozilla/ProfilerMarkers.h"
- #include "mozilla/TimeStamp.h"
--#include "mozilla/glean/XpcomMetrics.h"
- #include "nsCycleCollector.h"
- #include "nsDebug.h"
- 
-@@ -112,7 +111,6 @@ void mozilla::CycleCollectorStats::AfterCycleCollectionSlice() {
- 
-     uint32_t percent =
-         uint32_t(idleDuration.ToSeconds() / duration.ToSeconds() * 100);
--    glean::cycle_collector::slice_during_idle.AccumulateSingleSample(percent);
-   }
- 
-   TimeDuration sliceTime = TimeBetween(mBeginSliceTime, mEndSliceTime);
-@@ -164,33 +162,3 @@ void mozilla::CycleCollectorStats::AfterForgetSkippable(
-                   MarkerTiming::IntervalUntilNowFrom(aStartTime), CCSliceMarker,
-                   aInIdle);
- }
--
--void mozilla::CycleCollectorStats::SendTelemetry(TimeDuration aCCNowDuration,
--                                                 TimeStamp aPrevCCEnd) const {
--  // Many of the telemetry measures would not make sense off the main thread (on
--  // workers), and even for those that do, we don't want to mix mainthread and
--  // other threads' measures.
--  MOZ_ASSERT(NS_IsMainThread());
--
--  glean::cycle_collector::finish_igc
--      .EnumGet(
--          static_cast<glean::cycle_collector::FinishIgcLabel>(mAnyLockedOut))
--      .Add();
--  glean::cycle_collector::sync_skippable
--      .EnumGet(static_cast<glean::cycle_collector::SyncSkippableLabel>(
--          mRanSyncForgetSkippable))
--      .Add();
--  glean::cycle_collector::full.ProcessGet().AccumulateRawDuration(
--      aCCNowDuration);
--  glean::cycle_collector::max_pause.ProcessGet().AccumulateRawDuration(
--      mMaxSliceTime);
--
--  if (!aPrevCCEnd.IsNull()) {
--    TimeDuration timeBetween = TimeBetween(aPrevCCEnd, mBeginTime);
--    glean::cycle_collector::time_between.ProcessGet().AccumulateRawDuration(
--        timeBetween);
--  }
--
--  glean::cycle_collector::forget_skippable_max.ProcessGet()
--      .AccumulateRawDuration(mMaxForgetSkippableTime);
--}
 diff --git a/xpcom/base/CycleCollectorStats.h b/xpcom/base/CycleCollectorStats.h
 index 7d77179363e786589a33e8e68410c6c81a14d69a..14d0e7e354985c3ca0a943cfbb3e036fe0192254 100644
 --- a/xpcom/base/CycleCollectorStats.h
@@ -284883,3 +287368,155 @@ index 11022fbf319a0516c3327fe2985bf7ac6c9260b3..35e92b6963cbd0382e8503360a20d582
  #if TIMER_THREAD_STATISTICS
        CollectTimersFiredStatistics(timersFiredThisWakeup);
  #endif
+diff --git a/dom/security/nsHTTPSOnlyStreamListener.h b/dom/security/nsHTTPSOnlyStreamListener.h
+index ac6c00ce74e7f999e2869d9b19691ac43fef45ae..ba1e32f6d7179aefbbb9a652498b46e15101c541 100644
+--- a/dom/security/nsHTTPSOnlyStreamListener.h
++++ b/dom/security/nsHTTPSOnlyStreamListener.h
+@@ -5,7 +5,6 @@
+ #ifndef nsHTTPSOnlyStreamListener_h_
+ #define nsHTTPSOnlyStreamListener_h_
+ 
+-#include "mozilla/TimeStamp.h"
+ #include "nsCOMPtr.h"
+ #include "nsIStreamListener.h"
+ 
+@@ -28,12 +27,6 @@ class nsHTTPSOnlyStreamListener : public nsIStreamListener {
+  private:
+   virtual ~nsHTTPSOnlyStreamListener() = default;
+ 
+-  /**
+-   * Records telemetry about the upgraded request.
+-   * @param aStatus Request object
+-   */
+-  void RecordUpgradeTelemetry(nsIRequest* request, nsresult aStatus);
+-
+   /**
+    * Logs information to the console if the request failed.
+    * @param request Request object
+@@ -42,7 +35,6 @@ class nsHTTPSOnlyStreamListener : public nsIStreamListener {
+   void LogUpgradeFailure(nsIRequest* request, nsresult aStatus);
+ 
+   nsCOMPtr<nsIStreamListener> mListener;
+-  mozilla::TimeStamp mCreationStart;
+ };
+ 
+ #endif /* nsHTTPSOnlyStreamListener_h_ */
+diff --git a/uriloader/preload/PreloaderBase.h b/uriloader/preload/PreloaderBase.h
+index 1f62202c8a2f6ed647842f4e0095c467abceacf9..2b3da5bcaadd4255cf2a2fbcd631bab0c2b224ff 100644
+--- a/uriloader/preload/PreloaderBase.h
++++ b/uriloader/preload/PreloaderBase.h
+@@ -183,9 +183,6 @@ class PreloaderBase : public SupportsWeakPtr, public nsISupports {
+   // True after call to NotifyUsage.
+   bool mIsUsed = false;
+ 
+-  // True after we have reported the usage telemetry.  Prevent duplicates.
+-  bool mUsageTelementryReported = false;
+-
+   // True when this is used to Early Hints preload.
+   bool mIsEarlyHintsPreload = false;
+ 
+diff --git a/security/manager/ssl/NSSSocketControl.h b/security/manager/ssl/NSSSocketControl.h
+index 99e833aac993d33403a0d311e61d687cb1959d24..a1529467cd44bb3eb57b6bf5d2b78ba0faa0dfb5 100644
+--- a/security/manager/ssl/NSSSocketControl.h
++++ b/security/manager/ssl/NSSSocketControl.h
+@@ -338,7 +338,6 @@ class NSSSocketControl final : public CommonSocketControl {
+   int16_t mMACAlgorithmUsed;
+ 
+   uint32_t mProviderTlsFlags;
+-  mozilla::TimeStamp mSocketCreationTimestamp;
+   uint64_t mPlaintextBytesRead;
+ 
+   // Whether or not this connection has been claimed. If it has not been
+diff --git a/xpcom/base/CycleCollectorStats.cpp b/xpcom/base/CycleCollectorStats.cpp
+index c8ed89246d864f0869cca0a73c87ede245bef694..fafe0fdcfbd11e12d2ded79d50b6054c97ef12ea 100644
+--- a/xpcom/base/CycleCollectorStats.cpp
++++ b/xpcom/base/CycleCollectorStats.cpp
+@@ -12,7 +12,6 @@
+ #include "mozilla/BaseProfilerMarkersPrerequisites.h"
+ #include "mozilla/ProfilerMarkers.h"
+ #include "mozilla/TimeStamp.h"
+-#include "mozilla/glean/XpcomMetrics.h"
+ #include "nsCycleCollector.h"
+ #include "nsDebug.h"
+ 
+@@ -91,30 +90,11 @@ void mozilla::CycleCollectorStats::AfterCycleCollectionSlice() {
+   }
+ 
+   mEndSliceTime = TimeStamp::Now();
+-  TimeDuration duration = mEndSliceTime - mBeginSliceTime;
+ 
+   PROFILER_MARKER(
+       "CCSlice", GCCC, MarkerTiming::Interval(mBeginSliceTime, mEndSliceTime),
+       CCSliceMarker, !mIdleDeadline.IsNull() && mIdleDeadline >= mEndSliceTime);
+ 
+-  if (duration.ToSeconds()) {
+-    TimeDuration idleDuration;
+-    if (!mIdleDeadline.IsNull()) {
+-      if (mIdleDeadline < mEndSliceTime) {
+-        // This slice overflowed the idle period.
+-        if (mIdleDeadline > mBeginSliceTime) {
+-          idleDuration = mIdleDeadline - mBeginSliceTime;
+-        }
+-      } else {
+-        idleDuration = duration;
+-      }
+-    }
+-
+-    uint32_t percent =
+-        uint32_t(idleDuration.ToSeconds() / duration.ToSeconds() * 100);
+-    glean::cycle_collector::slice_during_idle.AccumulateSingleSample(percent);
+-  }
+-
+   TimeDuration sliceTime = TimeBetween(mBeginSliceTime, mEndSliceTime);
+   mMaxSliceTime = std::max(mMaxSliceTime, sliceTime);
+   mMaxSliceTimeSinceClear = std::max(mMaxSliceTimeSinceClear, sliceTime);
+@@ -164,33 +144,3 @@ void mozilla::CycleCollectorStats::AfterForgetSkippable(
+                   MarkerTiming::IntervalUntilNowFrom(aStartTime), CCSliceMarker,
+                   aInIdle);
+ }
+-
+-void mozilla::CycleCollectorStats::SendTelemetry(TimeDuration aCCNowDuration,
+-                                                 TimeStamp aPrevCCEnd) const {
+-  // Many of the telemetry measures would not make sense off the main thread (on
+-  // workers), and even for those that do, we don't want to mix mainthread and
+-  // other threads' measures.
+-  MOZ_ASSERT(NS_IsMainThread());
+-
+-  glean::cycle_collector::finish_igc
+-      .EnumGet(
+-          static_cast<glean::cycle_collector::FinishIgcLabel>(mAnyLockedOut))
+-      .Add();
+-  glean::cycle_collector::sync_skippable
+-      .EnumGet(static_cast<glean::cycle_collector::SyncSkippableLabel>(
+-          mRanSyncForgetSkippable))
+-      .Add();
+-  glean::cycle_collector::full.ProcessGet().AccumulateRawDuration(
+-      aCCNowDuration);
+-  glean::cycle_collector::max_pause.ProcessGet().AccumulateRawDuration(
+-      mMaxSliceTime);
+-
+-  if (!aPrevCCEnd.IsNull()) {
+-    TimeDuration timeBetween = TimeBetween(aPrevCCEnd, mBeginTime);
+-    glean::cycle_collector::time_between.ProcessGet().AccumulateRawDuration(
+-        timeBetween);
+-  }
+-
+-  glean::cycle_collector::forget_skippable_max.ProcessGet()
+-      .AccumulateRawDuration(mMaxForgetSkippableTime);
+-}
+diff --git a/dom/media/webrtc/jsapi/RTCRtpSender.h b/dom/media/webrtc/jsapi/RTCRtpSender.h
+index 3f30c65a6e259715cb948d5674213747316f1eeb..a7ebb699a74197d53cf6b15d73f083dace300441 100644
+--- a/dom/media/webrtc/jsapi/RTCRtpSender.h
++++ b/dom/media/webrtc/jsapi/RTCRtpSender.h
+@@ -217,11 +217,6 @@ class RTCRtpSender : public nsISupports,
+   bool mHaveFailedBecauseNoEncodings = false;
+   bool mHaveFailedBecauseOtherError = false;
+ 
+-  // Limits logging of codec information
+-  bool mHaveLoggedUlpfecInfo = false;
+-  bool mHaveLoggedOtherFec = false;
+-  bool mHaveLoggedVideoPreferredCodec = false;
+-  bool mHaveLoggedAudioPreferredCodec = false;
+   // Used to detect cases where getParameters is called too long after
+   // setParameters, and log a better warning.
+   Maybe<nsString> mLastTransactionId;

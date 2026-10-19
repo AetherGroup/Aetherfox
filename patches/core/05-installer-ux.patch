@@ -10,7 +10,7 @@ Squashed from 1 units:
   Everything the user sees while Aether installs, in one patch because it only
   makes sense together:
   
-  * the Add/Remove Programs entry reads "Aether Browser", the distribution
+  * the Add/Remove Programs entry reads "Aetherfox", the distribution
     version and "Aether Group" as publisher, with no locale in the name;
   * a welcome gate asks before starting, with a Cancel that exits instead of
     leaving the window hanging;

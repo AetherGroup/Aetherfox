@@ -363,7 +363,7 @@ def main():
                     shutil.copy2(f, t)
                     n_oxy += 1
         print(f"[aether] branding assets: {n_gap} gaps filled from unofficial, "
-              f"{n_oxy} Aether files")
+              f"{n_oxy} Aetherfox files")
 
     # Distribution dir: only distribution.ini is carried by the series (ARP
     # reads the version from it). No policies: the packaging patch does

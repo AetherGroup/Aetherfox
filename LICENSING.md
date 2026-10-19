@@ -7,7 +7,7 @@ work and are released under the [Mozilla Public License 2.0](LICENSE).
 
 ## Firefox
 
-Aether Browser is built from `mozilla-firefox/firefox`, pinned to the tag in
+Aetherfox is built from `mozilla-firefox/firefox`, pinned to the tag in
 `firefox_version.txt`. That source is fetched at build time and is not part
 of this repository. Firefox is also MPL-2.0, so the resulting binaries are
 covered by the same license.

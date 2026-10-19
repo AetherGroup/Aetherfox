@@ -1,12 +1,12 @@
-# Building Aether Browser
+# Building Aetherfox
 
-The authoritative guide to building Aether from source. If a step is not here,
+The authoritative guide to building Aetherfox from source. If a step is not here,
 it does not work.
 
-For what Aether is and what it removes, see the [README](../README.md).
+For what Aetherfox is and what it removes, see the [README](../README.md).
 
 > **Pre-release software.** Builds run on Windows x64. Binaries are not
-> code-signed. [Aether Browser 0.1](https://github.com/AetherGroup/Aetherfox/releases/tag/v0.1)
+> code-signed. [Aetherfox 0.1](https://github.com/AetherGroup/Aetherfox/releases/tag/v0.1)
 > is out (offline setup + portable zip); there is still no public update server.
 
 - [Quick start](#quick-start)
@@ -49,7 +49,7 @@ C:\o\fs\obj-aether\dist\bin\aether.exe --version
 That last command must print:
 
 ```
-Aether Aether 156.0.1
+Aether Aetherfox 156.0.1
 ```
 
 `run-bootstrap.cmd` also has to run once per machine, after installing
@@ -99,11 +99,11 @@ installs nothing useful.
            return True
    ```
 
-   Aether pins `FIREFOX_156_0_1_RELEASE`, a release, so configure then fails
+   Aetherfox pins `FIREFOX_156_0_1_RELEASE`, a release, so configure then fails
    with `ERROR: Cannot find the target C compiler`.
-3. **The toolchain taskgraph hashes files that Aether deletes.** Fetching a
+3. **The toolchain taskgraph hashes files that Aetherfox deletes.** Fetching a
    toolchain runs `mach taskgraph tasks`, which digests files named by the task
-   definitions. Two of them do not exist in an Aether tree: everything under
+   definitions. Two of them do not exist in an Aetherfox tree: everything under
    `mobile/`, which `sync.py` removes before applying the stack, and a crash
    reporter test file that the patches delete. So toolchains can only be fetched
    from a pristine checkout.
@@ -217,7 +217,7 @@ silently loses track of inputs once absolute paths pass about 224 characters.
 The symptom is a bogus `No rule to make target` while linking `libxul`, long
 after compilation has finished.
 
-This is an upstream problem, not an Aether one, and the chain is documented:
+This is an upstream problem, not an Aetherfox one, and the chain is documented:
 
 - Windows caps a path at `MAX_PATH`, 260 characters.
 - Upstream budgets right up to that limit. Firefox's own `configure.py` has
@@ -298,7 +298,7 @@ Expected output:
 ```
 [aether] toolchains: already installed in C:\Users\<you>\.mozbuild
 [aether] 18 applied, 0 already there, 0 in conflict
-[aether] branding assets: 54 gaps filled from unofficial, 28 Aether files
+[aether] branding assets: 55 gaps filled from unofficial, 35 Aetherfox files
 [aether] distribution: carried by the series (no staged binaries)
 [aether] sync OK
 ```
@@ -318,7 +318,7 @@ scripts\windows\run-configure.cmd
 ```
 
 `MOZCONFIG` is not optional either. Without it you build the `unofficial`
-branding into the wrong objdir, and none of the Aether patches take effect.
+branding into the wrong objdir, and none of the Aetherfox patches take effect.
 
 The wrapper scripts locate the source tree as a sibling of the repository, so
 they expect `C:\o\browser` and `C:\o\fs`. If you used a different `--src`, call
@@ -359,7 +359,7 @@ python scripts\build.py --src C:\o\fs --package-only
 stub (`MOZ_STUB_INSTALLER=1` in the mozconfig). `scripts/build.py` then packs
 both into the single-file offline setup with `make-stub-offline.py` and
 deletes the standalone installers from `dist`, so it installs with no
-network: `obj-aether/dist/` ships `AetherSetup-<version>.exe` (~85 MB),
+network: `obj-aether/dist/` ships `AetherfoxSetup-<version>.exe` (~85 MB),
 the zip, and small metadata. It also fails if the uninstaller is missing
 from the package (`uninstall/helper.exe`, which the updater runs after
 every update), and `verify-flags.py` fails the build on any privacy
@@ -372,8 +372,8 @@ nothing builds them.
 C:\o\fs\obj-aether\dist\bin\aether.exe --version
 ```
 
-Must print `Aether Aether 156.0.1`. Then confirm that *About Aether* shows the
-Aether wordmark and the version rather than Firefox, and that
+Must print `Aether Aetherfox 156.0.1`. Then confirm that *About Aetherfox* shows the
+Aetherfox wordmark and the version rather than Firefox, and that
 *Settings → Optional Features* exists with Report Broken Site off.
 
 ## The patch stack
@@ -418,7 +418,7 @@ The 60 GB figure is not padding. A full build needs all of this simultaneously:
 
 The complete Firefox history is around 30 GB and is deliberately not
 downloaded: `sync.py` clones with `--depth 1`, so `.git` stays at 1 GB. The
-history of what Aether changed lives in the patch stack, not in the Firefox
+history of what Aetherfox changed lives in the patch stack, not in the Firefox
 repository.
 
 ## Faster iteration
@@ -432,7 +432,7 @@ ac_add_options --enable-artifact-builds
 and build with `mach artifact install`. It downloads prebuilt binaries from
 Mozilla instead of compiling, so a build takes minutes.
 
-Artifact builds do not produce an Aether binary for verification: the artifacts
+Artifact builds do not produce an Aetherfox binary for verification: the artifacts
 are stock Firefox. The privacy check and the smoke test are meaningless in
 artifact mode.
 
@@ -448,8 +448,8 @@ described in the contributor notes below.
 
 or `... toolkit/crashreporter/test/browser/browser_aboutCrashesResubmit.js`
 
-The toolchain fetch was attempted on an Aether tree, and the taskgraph needs
-files that Aether deletes. Reset the checkout to pristine first, or let
+The toolchain fetch was attempted on an Aetherfox tree, and the taskgraph needs
+files that Aetherfox deletes. Reset the checkout to pristine first, or let
 `sync.py` do it for you.
 
 ### `ERROR: Cannot find cbindgen`

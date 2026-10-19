@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="branding/content/aether-lockup.png" alt="Aether Browser" width="200">
+  <img src="branding/content/aether-lockup.png" alt="Aetherfox" width="200">
 </p>
 
 <p align="center">
@@ -17,16 +17,16 @@
 > setup order, how the patch stack works and the five verification gates you
 > must pass before committing.
 
-> **Download:** [Aether Browser 0.1](https://github.com/AetherGroup/Aetherfox/releases/tag/v0.1)
+> **Download:** [Aetherfox 0.1](https://github.com/AetherGroup/Aetherfox/releases/tag/v0.1)
 > (Windows x64, unsigned). Updates still run in localhost mode; there is no
 > public update server yet. See [Current status](#current-status).
 
 ## Model
 
-Aether is not a divergent hard fork. It pins an official Firefox release,
+Aetherfox is not a divergent hard fork. It pins an official Firefox release,
 clones it clean, and applies a stack of patches on top.
 
-**The patches are the source.** Everything in this repository is what Aether
+**The patches are the source.** Everything in this repository is what Aetherfox
 changes relative to upstream Firefox, grouped in 18 thematic units. There is
 no proprietary blob and no hidden code path.
 
@@ -59,7 +59,7 @@ stays separate and always available.
 `about:preferences` piece by piece: the same controls in a new design, with
 nothing left that phones home.
 
-**Its own installer and update channel.** `AetherSetup-<version>.exe` is a
+**Its own installer and update channel.** `AetherfoxSetup-<version>.exe` is a
 single-file offline setup (it installs with no network), on its own
 `aether-release` update channel. The uninstaller ships inside the browser and
 the build fails if it ever goes missing.
@@ -96,8 +96,8 @@ by default and waits behind an explicit switch.
 
 ## Current status
 
-- **Released:** [Aether Browser 0.1](https://github.com/AetherGroup/Aetherfox/releases/tag/v0.1)
-  — offline setup (`AetherSetup-156.0.1.exe`) and portable zip. Binaries are
+- **Released:** [Aetherfox 0.1](https://github.com/AetherGroup/Aetherfox/releases/tag/v0.1)
+  — offline setup (`AetherfoxSetup-156.0.1.exe`) and portable zip. Binaries are
   **not code-signed** (SmartScreen will warn).
 - **Updates run in localhost mode for now**: the updater talks to a local
   `scripts/aus-local.py` serving a locally built MAR. It moves to the real
@@ -134,18 +134,21 @@ C:\o\fs\obj-aether\dist\bin\aether.exe --version
 
 Expect roughly 60 GB free and one to three hours of compilation. The build
 leaves two things in `obj-aether/dist`: the portable zip and
-`AetherSetup-<version>.exe`.
+`AetherfoxSetup-<version>.exe`.
 
-## Verifying a build is Aether
+## Verifying a build is Aetherfox
 
 Useful if you built this yourself, or want to check someone else's binary.
 
-- *About Aether* shows the Aether wordmark and the version, not Firefox.
+- *About Aetherfox* shows the Aetherfox wordmark and the version, not Firefox.
+- The binaries say so in their properties: `aether.exe`, `xul.dll`,
+  `plugin-container.exe` and `updater.exe` report `Aetherfox` as the product and
+  `Aether Group` as the company; `AetherfoxSetup-<version>.exe` does too.
 - `about:aethersettings` is the settings page; stock `about:preferences`
   is on its way out.
 - `about:telemetry` shows no active upload configuration.
 - Sync and the account button are absent from the toolbar and the menu.
-- No `about:policies` banner: Aether ships no enterprise policies.
+- No `about:policies` banner: Aetherfox ships no enterprise policies.
 
 ## License
 

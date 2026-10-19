@@ -530,12 +530,12 @@ index bb2524dec62519b0b0e9a582f6676fdc82346cfd..0f6f05f2fc2668b6b040651ed5194bf9
 --- a/browser/components/aether/content/setup.html
 +++ b/browser/components/aether/content/setup.html
 @@ -45,7 +45,7 @@
-     <span class="d">Check the Aether update endpoint for new versions. Off by default in v1.</span></span></label></div>
+     <span class="d">Check the Aetherfox update endpoint for new versions. Off by default in v1.</span></span></label></div>
  
    <div class="card"><label><input type="checkbox" id="opt-ublock">
 -    <span><span class="t">uBlock filter lists</span><br>
 +    <span><span class="t">Blocker filter lists</span><br>
-     <span class="d">Refresh blocker lists through the Aether proxy instead of third parties.</span></span></label></div>
+     <span class="d">Refresh blocker lists through the Aetherfox proxy instead of third parties.</span></span></label></div>
  
    <div class="card"><label><input type="checkbox" id="opt-sync">
 @@ -67,7 +67,7 @@ const { Services } = ChromeUtils.importESModule("resource://gre/modules/Services

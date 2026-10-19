@@ -1,4 +1,4 @@
-# AGENTS.md — Aether Browser operations manual
+# AGENTS.md — Aetherfox operations manual
 
 This repo is a **patch-built soft-fork of Firefox**. Everything you need to
 build it from scratch and to keep working on it is here. If you are coming in
@@ -151,8 +151,8 @@ git clone --branch FIREFOX_156_0_1_RELEASE --depth 1 `
 #    --skip-toolchains if the machine is already set up or there is no network.
 python scripts\sync.py --src C:\fs --apply --no-download
 #    Expected: "toolchains: already installed in ..." or the download
-#              "98 applied, 0 already there, 0 in conflict"
-#              "branding assets: 54 gaps filled from unofficial, 28 Aether files"
+#              "19 applied, 0 already there, 0 in conflict"
+#              "branding assets: 55 gaps filled from unofficial, 35 Aetherfox files"
 #              "distribution: carried by the series (no staged binaries)"
 
 # 4. Build + package
@@ -181,14 +181,14 @@ Expected output of `build.py` in `obj-aether/dist/`:
 
 **The shipped setup is assembled by `build.py` itself**, not manually: after
 `mach package` it runs `make-stub-offline.py`, which writes
-`obj-aether/dist/AetherSetup-<version>.exe` (~93 MB): the 7z SFX stub
+`obj-aether/dist/AetherfoxSetup-<version>.exe` (~93 MB): the 7z SFX stub
 plus a payload holding both `setup-stub.exe` and the full installer, so it
 installs with no network. Check it with `7zr l`. Then `build.py` deletes
 the standalone installers from dist (the bare stub would download from
 Mozilla; the full one is redundant once packed) — dist ships only
-AetherSetup, the zip and small metadata.
+AetherfoxSetup, the zip and small metadata.
 
-**Naming trap.** `AetherSetup-*.exe` used to be the .NET installer and is now the
+**Naming trap.** `AetherfoxSetup-*.exe` used to be the .NET installer and is now the
 NSIS stub: same name, completely different artifact (~93 MB offline NSIS against
 the old ~299 MB .NET one). `installer/` still holds those .NET sources; they are
 dead and nothing builds them.
@@ -201,7 +201,7 @@ update.
 
 ```powershell
 C:\fs\obj-aether\dist\aether\aether.exe --version
-# Must print:  Aether Aether 156.0.1
+# Must print:  Aether Aetherfox 156.0.1
 ```
 
 ---
@@ -346,11 +346,11 @@ tree comparison.
 
 | # | What it checks | How |
 |---|---|---|
-| 1 | The series applies on the base | `python scripts/sync.py --apply` → "98 applied, 0 in conflict" |
+| 1 | The series applies on the base | `python scripts/sync.py --apply` → "19 applied, 0 in conflict" |
 | 2 | **The stack rebuilds the whole tree** | clean clone test (below) |
 | 3 | Build privacy defaults | `python scripts/verify-flags.py --objdir ...` → "TODO OK" |
 | 4 | It compiles and packages | `python scripts/build.py` → rc 0 |
-| 5 | The binary runs | `aether.exe --version` → "Aether Aether 156.0.1" |
+| 5 | The binary runs | `aether.exe --version` → "Aether Aetherfox 156.0.1" |
 
 ### 5.1 The clean clone test (the gate that actually matters)
 
@@ -372,12 +372,12 @@ Then compare the two trees: in each, `git status --porcelain
 **and** the contents must be identical byte for byte. Files deleted in both are
 fine.
 
-What it should give (measured on `FIREFOX_156_0_1_RELEASE` + group 32):
-**17,469** files touched in both, 0 exclusive to one side, 0 differing
-contents. Of those 17,469, **15,019 are the `mobile/` removal** that `sync.py`
-does; the stack itself is **2,450** (1,059 deleted + 1,314 modified + 77 new).
-If you compare against a tree where `mobile/` is still present, exclude it or
-the count will not add up.
+What it should give (measured on `FIREFOX_156_0_1_RELEASE` + the 19 groups):
+**18,569** files touched in both, 0 exclusive to one side, 0 differing
+contents (1,736 byte-compared). Of those 18,569, **15,018 are the `mobile/`
+removal** that `sync.py` does; the stack itself is **3,551**. If you compare
+against a tree where `mobile/` is still present, exclude it or the count will
+not add up.
 
 > `git clone --shared` reuses the original repo's objects: it clones in seconds
 > without downloading 5 GB. `core.longpaths=true` if the path is long.
@@ -420,7 +420,7 @@ headers: there should be none.
 
 - **Remote live:** `origin` =
   `https://github.com/AetherGroup/Aetherfox.git` (public). `main` carries the
-  tree and the stack; **v0.1 is released** (`AetherSetup-156.0.1.exe` +
+  tree and the stack; **v0.1 is released** (`AetherfoxSetup-156.0.1.exe` +
   portable zip, built locally without CI — GitHub Actions stays disabled).
 - `.git` weighs ~12 MB: comfortably within GitHub's 100 MB per-file limit.
 - **GitHub's limit is the reason `mobile/` is not in the stack** (see §8.3).
@@ -484,7 +484,7 @@ headers: there should be none.
     headers and libs. That is why having `msvc140` installed is not enough:
     without clang-cl, `mach configure` dies with
     `Cannot find the target C compiler`.
-12. **⚠️ The taskgraph that downloads the toolchains hashes files that Aether
+12. **⚠️ The taskgraph that downloads the toolchains hashes files that Aetherfox
     removes.** Run on an already-modified tree it fails with
     `FileNotFoundError: ... mobile/android/android-components/build.gradle` or
     with `... toolkit/crashreporter/test/browser/browser_aboutCrashesResubmit.js`.
@@ -510,7 +510,7 @@ headers: there should be none.
     Drop NSIS from `ensure_toolchains`, or stop passing it
     `--enable-bootstrap`, and the packaging fails with "makensis not found" or
     "Missing file(s): bin/maintenanceservice_installer.exe", and the package can
-    ship with no uninstaller: an installed Aether cannot be removed after an
+    ship with no uninstaller: an installed Aetherfox cannot be removed after an
     update. `build.py` fails if `uninstall/helper.exe` is missing.
     What *is* optional is MSI/MSIX, which this build never generates
     (`MOZ_PKG_FORMAT=ZIP`).
@@ -539,7 +539,7 @@ headers: there should be none.
     break.** `uninstall/helper.exe` is NSIS (`uninstaller.nsi`), built during
     `mach build` and run by the updater after every update. Nothing else in the
     build notices if it stops shipping: the zip packages fine and just has no
-    way to remove Aether from a machine that was updated. `build.py` now fails
+    way to remove Aetherfox from a machine that was updated. `build.py` now fails
     if it is missing.
     `MOZ_MAINTENANCE_SERVICE` is **ON** in this build, and
     `maintenanceservice_installer.exe` is not just another artifact:
@@ -703,7 +703,7 @@ headers: there should be none.
     `FIREFOX_ICO`); a half-overlapped `mach build` that you killed leaves
     half-linked exes that `make` then considers up to date, so nuke both the
     .res *and* the dist exes every time.
-33. **⚠️ The icon you see on `AetherSetup-<v>.exe` is the SFX module's, not
+33. **⚠️ The icon you see on `AetherfoxSetup-<v>.exe` is the SFX module's, not
     the NSIS stub's.** `make-stub-offline.py` concatenates
     `branding/sfx-7zSD.Win32.sfx` + `sfx-config.txt` + `payload.7z` into one
     file, so Windows reads the icon off the **outer** SFX's own
@@ -712,11 +712,19 @@ headers: there should be none.
     touches the `setup-stub.exe` extracted at runtime. Worse, the SFX is a
     prebuilt Mozilla binary and it still carried **Oxygen Browser's** icon
     (blue "O" in a box) — nobody noticed because no file in the repo
-    referenced it. `scripts/patch-sfx-stub.py` rewrites those resources (and
-    `VS_VERSIONINFO`, where "Firefox"/"Mozilla" become "Aether" via an
-    equal-length UTF-16 substitution) through `UpdateResourceW`; it is
-    idempotent because it always starts from
-    `other-licenses/7zstub/firefox/7zSD.Win32.sfx`. It used to be dead code
+    referenced it. `scripts/patch-sfx-stub.py` rewrites those resources and
+    `VS_VERSIONINFO` through `UpdateResourceW`; it is idempotent because it
+    always starts from
+    `other-licenses/7zstub/firefox/7zSD.Win32.sfx`. The version values are
+    *longer* than the upstream slots they replace (`Aether Group`,
+    `Aetherfox Setup`), so it is no longer a byte swap: the script parses the
+    VS_VERSIONINFO block tree and re-serializes it
+    (`read_rt_version`/`parse_vs_block`/`serialize_vs_block`, pure Python — it
+    used to need `pefile`), and asserts a byte-identical round-trip before
+    touching anything. That resource stores `wValueLength` in *bytes* (the NUL
+    included), not the "words" MSDN describes; the round-trip assertion is what
+    pins the convention. `pip install pillow` is still needed for the icon
+    half. It used to be dead code
     with hardcoded `C:\Users\Vic\…` paths from the old machine; paths are
     now derived from `__file__` with a `--src` for the worktree. It also
     used to resize from `Image.open(LOGO)`, which for an .ico opens the
@@ -904,10 +912,10 @@ headers: there should be none.
     tests, kill test processes by command line (`obj-aether` in it) -
     never blindly: the user's real browser must not be touched. Standing
     permission (2026-10-10, user does not day-drive any `aether.exe` build;
-    daily driver is stock Firefox until Aether ships): any `aether.exe` may
+    daily driver is stock Firefox until Aetherfox ships): any `aether.exe` may
     be killed when it blocks packaging. Never touch `firefox.exe`.
 45. **Never run raw `mach build/package`: always export `MOZCONFIG`
-    (repo `mozconfig.windows`, official Aether branding) first, or use
+    (repo `mozconfig.windows`, official Aetherfox branding) first, or use
     `scripts/windows/run-build.cmd` + `run-package.cmd` with
     `FIREFOX_SRC` pointing at the worktree.** Without it mach silently
     reconfigures the objdir to `unofficial` branding (firefox-named
@@ -992,11 +1000,111 @@ headers: there should be none.
     survive and can be validated with `zstandard` (the `build` venv has it),
     so deleting the broken install directory and re-running `sync.py`
     re-extracts from cache for free.
+54. **⚠️ A branding change does not reach the binaries until you reconfigure
+    and purge the generated resources.** Two separate caches hide it:
+    * `mach build` does not treat `browser/branding/<brand>/configure.sh` as a
+      configure input, so `config/autoconf.mk` keeps the old
+      `MOZ_APP_DISPLAYNAME` and `application.ini` keeps `Name=Aether`. The tell
+      is `config.status`'s mtime: if it predates your edit, configure did not
+      run. Run `mach configure` (with the same `MOZCONFIG`) before building.
+    * Even after a reconfigure the exe version resources do not rebuild: the
+      `%.rc` rule in `config/rules.mk` depends only on `$(RCINCLUDE)`
+      (`splash.rc`) and `create_rc.py`, not on `module.ver` or buildconfig, and
+      `create_rc.py --dep-file` writes no `.d` for these targets. So delete
+      every `*.res` under the objdir, the `*.rc` files carrying `create_rc.py`'s
+      marker (`Changes won't affect the build`), and the generated
+      `application.ini`/`application.ini.h`; then build.
+    Verify with `(Get-Item aether.exe).VersionInfo` and the packaged
+    `application.ini`, never by trusting the build log (this is trap 31's
+    family, one level up). Related: the company name of every binary that does
+    not set `WIN32_MODULE_COMPANYNAME` comes from `create_rc.py`'s default
+    (`Mozilla Foundation` upstream), and `ipc/app/module.ver` sets it for
+    `plugin-container.exe`: both are part of the Aetherfox rename in patch 01,
+    not of `branding/`.
+55. **A Rust program's version resource is invisible to Cargo.** `RUST_PROGRAMS`
+    link `module.res` through `-C link-arg=$(CURDIR)/module.res`
+    (`config/makefiles/rust.mk`), but Cargo fingerprints only the rustc args and
+    the crate sources: a changed `.res` does not invalidate the unit, and
+    `release/<bin>.exe` is a hardlink to the cached `deps/` artefact. Deleting
+    the exe or running `mach build` therefore changes nothing — after today's
+    rename `nmhproxy.exe` still carried yesterday's `CompanyName` and BuildID.
+    Touch the crate source (`browser/app/nmhproxy/src/main.rs`) to force a real
+    relink, then verify `.VersionInfo`; `mach package` copies the result.
 ---
 
 ## 9. Current state and open decisions
 
-- **All five gates green (this session).** 1: the series applies to a clean
+- **Aetherfox rename (2026-10-19, per user).** The product is **Aetherfox**;
+  the organisation, publisher, `-vendor-short-name` and every `CompanyName` are
+  **Aether Group**. Renamed: the brand FTL/properties, both wordmark SVGs, the
+  Setup/installer copy, `BrandFullName`/`BrandFullNameInternal`,
+  `MOZ_APP_DISPLAYNAME`, `application.ini`'s `CodeName`, the exe version resources
+  (`FileDescription`/`ProductName`), the install folder
+  (`%LOCALAPPDATA%\Aetherfox`), the ARP entry, the setup filename
+  (`AetherfoxSetup-<v>.exe`) and the docs. **Internal identifiers stay**:
+  `MOZ_APP_NAME=aether` (aether.exe, dist/aether, objdir, zip name), prefs
+  `aether.*`, addon ids, `about:aether*`, `aether-release`,
+  `--with-app-basename=Aether` (profile dir and `application.ini` `Vendor`),
+  and the shell identity in `defines.nsi.in` (`AppName`, `AppRegName`,
+  `DDEApplication`, `MozillaWindowClass`, the `FirefoxURL` progids). That last
+  set is *invisible*: the Default Apps display name is `BrandFullName` (checked
+  in the registry — the key is `Clients\StartMenuInternet\Firefox-<hash>`, but
+  its default value was the brand name), so it reads Aetherfox.
+  Legal notices stay Mozilla's (`WIN32_MODULE_COPYRIGHT`,
+  `WIN32_MODULE_TRADEMARKS`); the company field is ours. `create_rc.py`'s
+  default company joined `browser/app/module.ver`, `pbproxy/module.ver` and
+  `ipc/app/module.ver` in patch 01, so every shipped binary without its own
+  override reports Aether Group (xul.dll, mozglue.dll, updater.exe,
+  default-browser-agent.exe, ...). `maintenanceservice_installer.nsi` keeps
+  "Mozilla Corporation"/"Mozilla Maintenance Service" **on purpose**: that
+  service is shared by every Firefox channel and its HKLM key, log paths and
+  uninstall key are the integration contract. The SFX carries
+  `Aetherfox Setup`/`Aether Group` (trap 33). Rebuild traps: #54 and #55.
+  `aether.exe --version` printed `Aether Aether`: `DumpVersion` prints
+  `gAppData->name`, which is `application.ini`'s `Name` = `MOZ_APP_BASENAME`
+  (kept as Aether for the profile dir). Patch 01 now prints
+  `MOZ_APP_DISPLAYNAME` in `DumpVersion` and `DumpFullVersion`
+  (`toolkit/xre/nsAppRunner.cpp`), so gate 5 reads `Aether Aetherfox 156.0.1`.
+  Gates: 1 `19 applied, 0 in conflict`; 2 whole-tree green (18,569 files in both, 0 exclusive, 0 differing; 1,736 byte-compared);
+  3 `TODO OK`; 4 build + package exit 0; 5 `Aether Aetherfox 156.0.1`.
+- **Patch 03 cleanup (same session).** The telemetry removal had left
+  `auto start = TimeStamp::Now();` unused and an empty
+  `if (!rv.Failed()) { }` in `devtools/shared/heapsnapshot/HeapSnapshot.cpp`.
+  A full recompile (the reconfigure forces one) surfaced it as
+  `-Wunused-variable`; it had never shown up because that TU was cached.
+  Both are gone and the file's section was regenerated with
+  `git diff --full-index`, then re-proven **in series** (reverse the old
+  section on the clone, apply the new one, byte-identical to the worktree).
+  The `metrics.yaml` deletion that shares the section was re-checked too: a
+  boundary bug in the regeneration script had swallowed it, patch 03 carries
+  both again. The same rebuild surfaced four more dead leftovers, all removed
+  and their sections regenerated: `telemetryBucket` + the empty
+  `if (!*aCancelSubmit)` and the now-unused `nsISecurityUITelemetry.h` include
+  in `dom/html/HTMLFormElement.cpp`; the whole mixed-content block in
+  `WindowGlobalParent::ActorDestroy` (enum, `hasMixed*`, `mixedContentLevel`
+  and the empty `if (GetDocTreeHadMedia())`); `ReportErrorProbe` (its unused
+  `getErrorTypeLabel` lambda and `encryptedLabel`) in
+  `HTMLMediaElement.cpp`; and `cryptoCount` plus the "multiple crypto"
+  telemetry comment/rename in `DecoderData.cpp` (`VerifyAudioOrVideoInfo`).
+  `replace-section.py`'s end boundary now uses the **start** of the next
+  section (`a`, not the tuple's `e`); the old version silently dropped the
+  section that followed the one being replaced. The same rebuild then flagged
+  six more leftovers: the two dead loops in `PeerConnectionCtx::DeliverStats`
+  (whole statistics body collapsed to the `mLastReports` bookkeeping; its
+  telemetry helper, formerly owned by patch 08, moved into 03 and **08 lost
+  that section**), the "log codec info" blocks in `RTCRtpSender.cpp`, the
+  empty decoder loop in `VideoConduit.cpp`, and `RecordUpgradeTelemetry` in
+  `nsHTTPSOnlyStreamListener` (function, call, declaration, `mCreationStart`
+  and its includes all gone — the header joined patch 03). The first clean
+  full rebuild then surfaced the rest of the same wave (~30 sites across
+  `dom/base`, `layout`, `netwerk`, `security/manager/ssl`, `antitracking`,
+  `url-classifier` and `xpcom`: dead locals, empty blocks, `CollectCertTelemetry`
+  / CT telemetry and the probe-value mappers, `UpdateVsyncRate` replacing
+  `RecordTelemetryProbes`, `DebugOnly` for the pending-queue assert). Two more
+  headers joined patch 03 (`uriloader/preload/PreloaderBase.h`,
+  `security/manager/ssl/NSSSocketControl.h`): the new counts are
+  18,569/1,736.
+- **All five gates green (a previous session).** 1: the series applies to a clean
   checkout with 0 conflicts. 2: **whole-tree comparison green, 2,323 files
   touched in both trees, 0 exclusive, 0 differing contents** (SHA-256 per
   file) — the first time gate 2 has run with the installer patches. 3:
@@ -1090,10 +1198,10 @@ headers: there should be none.
   The files live in the PRIVATE backup `D:\oxygen-backups\msi-msix\` (not
   public, not in any patch) with a restore README; `mach repackage`
   tooling untouched. Gates 1/3/5 green, build OK (the pipeline regenerates
-  `AetherSetup-156.0.1.exe`, 91,7 MB, by itself).
+  `AetherfoxSetup-156.0.1.exe`, 91,7 MB, by itself).
 - **Done:** `37-nimbus-orphaned-try.patch` (one line: orphaned `try` → bare
   block; an earlier patch had removed its `finally`, leaving a module that
-  never parsed) and `39-arp-display.patch` (ARP reads "Aether Browser (x64)
+  never parsed) and `39-arp-display.patch` (ARP reads "Aetherfox (x64)
 /  0.1 / Aether Group": no locale in the name, distribution version from
   distribution.ini with AppVersion fallback, publisher fixed in both
   installers; 156.0.1 stays internal). Icons: `generate-icons.py` set to
@@ -1119,12 +1227,12 @@ headers: there should be none.
 - **Group 32 / installer:** the shipped setup is the **Firefox NSIS stub**,
   offline. `mach package` produces the full installer and `setup-stub.exe`
   (`MOZ_STUB_INSTALLER=1`), and `make-stub-offline.py` packs both into
-  `AetherSetup-<version>.exe` (~93 MB, SFX + payload) so it installs with no
+  `AetherfoxSetup-<version>.exe` (~93 MB, SFX + payload) so it installs with no
   network. Patch 32 is what makes that possible: it reads the payload instead of
   downloading, and it is also where the **installer telemetry was removed**
   (`SendTelemetryPing`, the ping after uninstall, the post-uninstall survey) plus
   the auto-elevation (`${ElevateUAC}` in `CommonOnInit`), so the stub never asks
-  for admin. Installs to `%LOCALAPPDATA%\Aether Browser` without UAC; only a
+  for admin. Installs to `%LOCALAPPDATA%\Aetherfox` without UAC; only a
   launch "as administrator" picks `Program Files`.
   The stub finishes on its own page asking whether to launch the browser
   (`content/launch.html` + `launch.js`, silent installs keep upstream behavior).
@@ -1166,15 +1274,15 @@ headers: there should be none.
 - **Done (108: Normandy fallout on newtab fixed):** with Normandy gone nothing calls `ExperimentAPI.init()`, so the Nimbus store never resolves `ready()` and `AboutNewTab.onBrowserReady` hung forever before creating ActivityStream - blank newtab, null stream, no error logged. Newtab startup no longer waits on Nimbus (local pref defaults only); the dead `Glean` sandbox global is out of the DevTools loader (that ReferenceError had also killed the browser console and derived the `lazy.Telemetry` failure); the last live `NewTabGleanUtils` site is out of the newtab resource mapping. Diagnosed by `dump()` stage markers patched into a disposable `browser/omni.ja` (handshake traced hop by hop, content store proved `App.initialized=true`), then fixed in-tree. Traps: silent Nimbus hangs are #46, Marionette's forced minimal newtab feeds are #47. Gates: series OK (42 applied, 64 covered, 0 conflicts), tree diff 0/0/0, TODO OK, build+package exit 0 with 0 warnings, `Aether Aether 156.0.1`, headless smoke 0 chrome errors, headed newtab renders (user-confirmed), MAR rebuilt with matching BuildID, self-test OK.
 - **Done (109: RFP off by default, code kept):** `privacy.resistFingerprinting` default `true`→`false` in `firefox.js` (one pref + comment, code untouched) so our graded system can be measured without RFP masking it. Accepted interim cost: weaker fingerprinting until our layers land; supersedes the old do-not-touch-RFP rule per user decision. Gates: series OK (42 applied, 65 covered, 0 conflicts), tree diff 0/0/0, TODO OK, build+package exit 0, version string, packaged `firefox.js` verified carrying `false`, headless smoke 0 chrome errors, MAR rebuilt with matching BuildID.
 - **Done (128: normalize touch points with a Settings toggle):** touch laptops report rare maxTouchPoints values (7+ bits on CoverYourTracks). Window Navigator reports 0 behind master + kill prefs with the usual per-site exemption restoring the real count; own toggle next to the fingerprinter switch at the top of Settings > Privacy & Security (config entry, checkbox, en-US FTL). Gates: normalized 0 by default PASS (headed live-toggle off follows the widget, which reports 0 in test windows); series OK (51 applied, 80 covered, 0 conflicts), tree diff 0/0/0, TODO OK, build+package exit 0 with 0 warnings, version string, headless smoke on about:preferences 0 chrome errors, MAR rebuilt with matching BuildID.
-- **Done (129: restrict page-visible fonts with a Settings toggle):** font presence lists are ~5 stable bits. Documents resolve at Gecko base-system visibility behind master + kill prefs, and Aether additionally hides the Windows families that carry edition/Office signal but no glyph coverage of their own (decorative and bundled-Office families only; CJK, Indic, Thai, symbol-coverage and locale fonts stay visible so text never falls back to tofu). Chrome, devtools, RFP-exempt documents and Aether-exempted sites resolve at a higher level and are unaffected; OffscreenCanvas contexts inherit through the standard provider chain. Own toggle next to the other switches at the top of Settings > Privacy & Security; webfonts via @font-face keep working. Debugging: IsVisibleToCSS is the single funnel for every CSS font lookup; its first version inverted the default (it exposed user-installed fonts at Base level) and left the pref check orphaned (unused-function warning) - both fixed before shipping. Residual: Segoe UI Black/Semibold/Semilight and MS Serif resolve through style-linking/substitutes to the visible Segoe UI family (shared metrics, marginal signal); narrowing the parent would break all UI text. Gates: fonts-on (54 -> 29 detected, proper subset, Arial kept), fonts-off (54, equals baseline) and exempt (54, equals baseline) PASS; series OK (127 applied, 0 already there, 0 in conflict), tree diff 0/0/0, TODO OK, build+package exit 0 with 0 warnings, version string, headless smoke (about:preferences#privacy renders 1366x768, stderr clean apart from known headless artifacts; packaged firefox.js verified carrying the new default), MAR rebuilt with matching BuildID. Log-driven hardening: chrome documents skip the restriction (UI icon fonts were blocked); content gates re-green.
+- **Done (129: restrict page-visible fonts with a Settings toggle):** font presence lists are ~5 stable bits. Documents resolve at Gecko base-system visibility behind master + kill prefs, and Aetherfox additionally hides the Windows families that carry edition/Office signal but no glyph coverage of their own (decorative and bundled-Office families only; CJK, Indic, Thai, symbol-coverage and locale fonts stay visible so text never falls back to tofu). Chrome, devtools, RFP-exempt documents and Aetherfox-exempted sites resolve at a higher level and are unaffected; OffscreenCanvas contexts inherit through the standard provider chain. Own toggle next to the other switches at the top of Settings > Privacy & Security; webfonts via @font-face keep working. Debugging: IsVisibleToCSS is the single funnel for every CSS font lookup; its first version inverted the default (it exposed user-installed fonts at Base level) and left the pref check orphaned (unused-function warning) - both fixed before shipping. Residual: Segoe UI Black/Semibold/Semilight and MS Serif resolve through style-linking/substitutes to the visible Segoe UI family (shared metrics, marginal signal); narrowing the parent would break all UI text. Gates: fonts-on (54 -> 29 detected, proper subset, Arial kept), fonts-off (54, equals baseline) and exempt (54, equals baseline) PASS; series OK (127 applied, 0 already there, 0 in conflict), tree diff 0/0/0, TODO OK, build+package exit 0 with 0 warnings, version string, headless smoke (about:preferences#privacy renders 1366x768, stderr clean apart from known headless artifacts; packaged firefox.js verified carrying the new default), MAR rebuilt with matching BuildID. Log-driven hardening: chrome documents skip the restriction (UI icon fonts were blocked); content gates re-green.
 - **Done (130: single-entry language list and Accept-Language with a Settings toggle):** secondary languages are stable cross-site linkers while adding nothing to negotiation. navigator.languages truncates to the top entry behind master + kill prefs (navigator.language is languages[0], so it stays coherent); the HTTP Accept-Language header is cut to its first token at the channel layer, where redirects re-enter per hop and every hop is re-evaluated against its own target. Workers share one global list and cannot prove first-party off-thread, so they truncate without exemption; an explicit language override (containers) always wins. Third-party targets always truncate so an exemption never leaks the full list to embedded trackers; first-party targets keep the full list only where the top site is exempted. Own toggle at the top of Settings > Privacy & Security. DNT stays off (deprecated; sending it is itself a minority signal) and GPC is left at stock default for the same reason. Debugging: HttpBaseChannel needed the fully-qualified mozilla::dom::AetherCanvasNoise name (net namespace), a stray quote broke an include, and SetHeader is nodiscard - all fixed with 0 warnings. Gates: langs-on (single entry in navigator and both first/third-party echoes), langs-off (full list and full echoes) and exempt (full navigator, full first-party echo, truncated third-party echo) PASS; series OK (128 applied, 0 already there, 0 in conflict), tree diff 0/0/0, TODO OK, build+package exit 0 with 0 warnings, version string, headless smoke (about:preferences#privacy renders, stderr clean; packaged firefox.js verified carrying the new default), MAR rebuilt with matching BuildID.
 - **Done (131: stock 24-bit screen depth with a Settings toggle):** real hardware is 24-bit almost everywhere, so this is ~0 stable bits on typical setups; the setups that are not (16-bit RDP/VM sessions) are a telling minority worth covering. screen.colorDepth and screen.pixelDepth (ColorDepth delegates to PixelDepth) report 24 behind master + kill prefs with the usual per-site exemption; nothing derives layout from this value so there is no invariant to maintain. Own toggle at the top of Settings > Privacy & Security. Deliberately out of scope: screen geometry and devicePixelRatio. Monitor size is entangled with the real window size through hard invariants (innerWidth <= screen.width, fullscreen inner == screen > avail); any lie big enough to matter breaks them detectably unless innerWidth and media-query evaluation are forked too (Tor-letterboxing complexity, not a layer), and CoverYourTracks itself observes screen size varies between visits. Gates: depth-on/off/exempt PASS (24 everywhere on 24-bit hardware by construction; gates verify plumbing and no-breakage); series OK (129 applied, 0 already there, 0 in conflict), tree diff 0/0/0, TODO OK, build+package exit 0 with 0 warnings, version string, headless smoke (about:preferences#privacy renders, stderr clean apart from known headless artifacts), MAR rebuilt with matching BuildID.
 - **Done (132: UTC timezone opt-in with a Settings toggle):** the OS zone is ~6 stable bits. Behind master + an opt-in pref (off by default), page Date/Intl and dedicated workers report UTC: window globals take it at global creation through the same realm-override seam automation uses (explicit overrides still win, chrome globals keep the real zone), and document-created workers take it at creation on the parent thread where prefs are readable. Nested workers inherit it from their parent. The usual per-site exemption restores the real zone. Own toggle at the top of Settings > Privacy & Security. Residual: service workers have no document on their creation path and keep the OS zone. Gates: tz-on (UTC date/offset/zone in window and worker), tz-off and exempt (Madrid values back in both) PASS; series OK (130 applied, 0 already there, 0 in conflict), tree diff 0/0/0, TODO OK, build+package exit 0 with 0 warnings, version string, headless smoke (about:preferences#privacy renders, stderr clean), MAR rebuilt with matching BuildID.
 - **Done (133: render the Settings toggles in the settings redesign):** the six switches lived only in the legacy template UI, which is never stamped while browser.settings-redesign.enabled is on (our default): Privacy & Security showed nothing of ours. They are now a first-class aetherProtections setting group right after the ETP status card (one addSetting binding per pref, moz-checkbox controls, human descriptions on every label, search-indexed); the legacy groupbox stays as fallback. Root-caused from a user report plus a tall headless screenshot; Marionette cannot script privileged contexts and the CDP /json routes are httpd-only in this build, so verification is visual + chrome-log. Gates: tall-viewport screenshot shows all six toggles with correct defaults (five on, UTC off), stderr clean of settings errors; series OK (131 applied, 0 already there, 0 in conflict), tree diff 0/0/0, TODO OK, build+package exit 0 with 0 warnings, version string, MAR rebuilt with matching BuildID.
 - **Done (134: fine-grained fingerprint switches with a master toggle):** six switches hid the real breadth (canvas/WebGL/audio/cores/text noise had kill prefs but no UI, no master at all). The group now lists every layer individually with the master first, plus the two stock opt-ins (WebGPU allow, UA token) bound directly with no engine change; legacy template fallback mirrors the list. Master verified to gate all noise layers in KeyForPref (blocking stays independent by design). Gates: tall-viewport screenshot shows all fourteen toggles with correct defaults, stderr clean apart from two pre-existing unrelated errors; series OK (132 applied, 0 already there, 0 in conflict), tree diff 0/0/0, TODO OK, build+package exit 0 with 0 warnings, version string, MAR rebuilt with matching BuildID.
-- **Done (135: standalone settings skeleton):** first step of the independent settings menu. about:aethersettings serves a static skeleton ported from the user mockup (layout, all three theme variable sets, sixteen icons, dashboard, quick cards, featured banner, stub); remote webfont dropped (offline rule), no scripts, en-US copy. Debugging: the docshell redirector was the wrong table (about: hung); browser/components/about/AboutRedirector.cpp + components.conf is the right one. Gates: about: renders the full design headless, chrome URL renders too; series OK (133 applied, 0 already there, 0 in conflict), tree diff 0/0/0, TODO OK, build+package exit 0 with 0 warnings, version string, MAR rebuilt with matching BuildID. Revised per direction: header tools out (no FPS meter, no theme seg, no accent swatches here; Light/Dark/Purple set stays for the theme work, fluidity-at-refresh is a standing principle); CSS machinery kept. Appearance section added in the same patch (single living patch for the new menu per direction, no 137): big box with Browser color picker (three per-card-scoped theme cards, accent ring + new tick badge with per-card contrast), theme persists in aether.settings.theme, dashboard status follows, minimal section switching; page is chrome-privileged now. Debugging: URI_MUST_LOAD_IN_CHILD contradicts IS_SECURE_CHROME_UI (hung loads) — dropped; Enter does not activate buttons via WebDriver keys, Space does. Gates: light/dark init renders, keyboard E2E (nav switch, purple and dark select with ring+tick on all three, prefs.js persistence), stderr clean. Sidebar refinements in the same patch: wider bar, larger type and icons, selected category as an accent pill with on-accent text, theme-face dots removed (tick kept), snappier wheel (notch 32, cooldown 250ms), explicit fade-out/in on swap with a generation guard. Wheel E2E re-green. Appearance refinements in the same patch: eyebrow out, normal-size crumb, duplicate box header out, smaller titles, off-accent selection ring plus matching tick, Website appearance menu wired to the stock content-override pref (keyboard E2E with persistence). Refinement in the same patch: snappier wheel, explicit fade-out/in, theme-face dots out, headers in the Setup face (Segoe UI). Theme cards reworked in the same patch: neutral cards, swatch-only color, tick-only selection everywhere, invalid focus_outline key Card restyle in the same patch: transparent cards, color only in the fluid swatch, tick-only selection on theme and web cards Appearance rebuilt in the row pattern (mockup previews with radio dots, accent swatches plus custom picker on one pref, Seven accents now (red, orange, yellow, green, blue, indigo, Custom accent is an in-page picker (SV square, hue bar, hex) instead of the native Windows dialog: live preview, commit on release, hex commits when complete and snaps back when invalid, Escape restores the accent the picker opened with; 31/31 E2E incl. restart persistence. Website appearance options use the real 44x32 mockup icons (ws-light, ws-dark, ws-sys composed via clip paths) at 50x36 in cards with a tick badge and accent border on the selected one, icon colours neutral grey (they stand for websites, not Aether), row inline again, 21/21 E2E incl. pref write; Protection section renders the fourteen settings from one registry in three row-pattern groups, master greys gated rows, stock page already covers the same fourteen prefs, 12/12 E2E; Appearance carries an Interface design row for the same pref, 9/9 E2E, plus a restart banner with a Restart now button when the design differs from page-load time; violet) plus custom picker, keyboard E2E with persistence; website scheme as seg; Aether Light/Dark built-in themes with an Our favorites group; keyboard E2E with persistence). Appearance sections stack vertically now (option cards back to horizontal rows inside; verified wide and narrow with no overlap). Vertical option rows in the same patch (swatch left, name, tick right; keyboard E2E re-green with persistence). Fourth theme Black (true-black chrome and page theme, keyboard E2E with persistence) plus vibrant purple swatch fix. Honesty note under Website appearance (verified: the stock override flips matchMedia plus rendering; sites with a saved theme of their own ignore it). Card cleanup in the same patch: transparent cards, borderless swatches, web cards down to icon plus tick (verified wide). (verified at 1366 and 800 wide with no overlap). Light card fix in the same patch: explicit light scope plus white swatch, every card self-sufficient on any page theme. out of the purple manifest. Gates: user-log review, chrome font-block messages gone, fonts gates re-green, appearance screenshot with tick-only cards. Headers use the installer face (Quicksand Bold subset as data URI; the generator cannot emit binary additions, hence embedded text). Browser chrome follows the picker: new built-in Aether Purple theme plus compact light/dark, picker enables immediately, startup sync re-enables explicit choices only. Gates: headed shot shows the full purple browser, activeThemeID purple in profile, keyboard E2E on all three cards with persistence. Sidebar pass per direction: wider bar, larger type and icons, selected pill in accent fill with on-accent text, wheel over the sidebar steps categories rate-limited (accumulation plus cooldown, native scroll first at scroll range ends), compositor-only section swap. Gates: wheel E2E (one scroll steps once, three rapid scrolls step once), stderr clean. Flash fix per direction: the BrowserGlue startup sync is gone (it switched late: black first, purple after). enable() persists natively, so restarts apply the theme on the stock path with no code; the page reads extensions.activeThemeID back with our pref as fallback. E2E: click persists purple, restart keeps it.
+- **Done (135: standalone settings skeleton):** first step of the independent settings menu. about:aethersettings serves a static skeleton ported from the user mockup (layout, all three theme variable sets, sixteen icons, dashboard, quick cards, featured banner, stub); remote webfont dropped (offline rule), no scripts, en-US copy. Debugging: the docshell redirector was the wrong table (about: hung); browser/components/about/AboutRedirector.cpp + components.conf is the right one. Gates: about: renders the full design headless, chrome URL renders too; series OK (133 applied, 0 already there, 0 in conflict), tree diff 0/0/0, TODO OK, build+package exit 0 with 0 warnings, version string, MAR rebuilt with matching BuildID. Revised per direction: header tools out (no FPS meter, no theme seg, no accent swatches here; Light/Dark/Purple set stays for the theme work, fluidity-at-refresh is a standing principle); CSS machinery kept. Appearance section added in the same patch (single living patch for the new menu per direction, no 137): big box with Browser color picker (three per-card-scoped theme cards, accent ring + new tick badge with per-card contrast), theme persists in aether.settings.theme, dashboard status follows, minimal section switching; page is chrome-privileged now. Debugging: URI_MUST_LOAD_IN_CHILD contradicts IS_SECURE_CHROME_UI (hung loads) — dropped; Enter does not activate buttons via WebDriver keys, Space does. Gates: light/dark init renders, keyboard E2E (nav switch, purple and dark select with ring+tick on all three, prefs.js persistence), stderr clean. Sidebar refinements in the same patch: wider bar, larger type and icons, selected category as an accent pill with on-accent text, theme-face dots removed (tick kept), snappier wheel (notch 32, cooldown 250ms), explicit fade-out/in on swap with a generation guard. Wheel E2E re-green. Appearance refinements in the same patch: eyebrow out, normal-size crumb, duplicate box header out, smaller titles, off-accent selection ring plus matching tick, Website appearance menu wired to the stock content-override pref (keyboard E2E with persistence). Refinement in the same patch: snappier wheel, explicit fade-out/in, theme-face dots out, headers in the Setup face (Segoe UI). Theme cards reworked in the same patch: neutral cards, swatch-only color, tick-only selection everywhere, invalid focus_outline key Card restyle in the same patch: transparent cards, color only in the fluid swatch, tick-only selection on theme and web cards Appearance rebuilt in the row pattern (mockup previews with radio dots, accent swatches plus custom picker on one pref, Seven accents now (red, orange, yellow, green, blue, indigo, Custom accent is an in-page picker (SV square, hue bar, hex) instead of the native Windows dialog: live preview, commit on release, hex commits when complete and snaps back when invalid, Escape restores the accent the picker opened with; 31/31 E2E incl. restart persistence. Website appearance options use the real 44x32 mockup icons (ws-light, ws-dark, ws-sys composed via clip paths) at 50x36 in cards with a tick badge and accent border on the selected one, icon colours neutral grey (they stand for websites, not Aetherfox), row inline again, 21/21 E2E incl. pref write; Protection section renders the fourteen settings from one registry in three row-pattern groups, master greys gated rows, stock page already covers the same fourteen prefs, 12/12 E2E; Appearance carries an Interface design row for the same pref, 9/9 E2E, plus a restart banner with a Restart now button when the design differs from page-load time; violet) plus custom picker, keyboard E2E with persistence; website scheme as seg; Aetherfox Light/Dark built-in themes with an Our favorites group; keyboard E2E with persistence). Appearance sections stack vertically now (option cards back to horizontal rows inside; verified wide and narrow with no overlap). Vertical option rows in the same patch (swatch left, name, tick right; keyboard E2E re-green with persistence). Fourth theme Black (true-black chrome and page theme, keyboard E2E with persistence) plus vibrant purple swatch fix. Honesty note under Website appearance (verified: the stock override flips matchMedia plus rendering; sites with a saved theme of their own ignore it). Card cleanup in the same patch: transparent cards, borderless swatches, web cards down to icon plus tick (verified wide). (verified at 1366 and 800 wide with no overlap). Light card fix in the same patch: explicit light scope plus white swatch, every card self-sufficient on any page theme. out of the purple manifest. Gates: user-log review, chrome font-block messages gone, fonts gates re-green, appearance screenshot with tick-only cards. Headers use the installer face (Quicksand Bold subset as data URI; the generator cannot emit binary additions, hence embedded text). Browser chrome follows the picker: new built-in Aetherfox Purple theme plus compact light/dark, picker enables immediately, startup sync re-enables explicit choices only. Gates: headed shot shows the full purple browser, activeThemeID purple in profile, keyboard E2E on all three cards with persistence. Sidebar pass per direction: wider bar, larger type and icons, selected pill in accent fill with on-accent text, wheel over the sidebar steps categories rate-limited (accumulation plus cooldown, native scroll first at scroll range ends), compositor-only section swap. Gates: wheel E2E (one scroll steps once, three rapid scrolls step once), stderr clean. Flash fix per direction: the BrowserGlue startup sync is gone (it switched late: black first, purple after). enable() persists natively, so restarts apply the theme on the stock path with no code; the page reads extensions.activeThemeID back with our pref as fallback. E2E: click persists purple, restart keeps it.
 
-- **Done (137: interface design switch):** one pref (`aether.ui.design`, default `aether`) with a helper module; hamburger Settings and both shields entry points gate on it with the stock fallbacks restored verbatim (no hamburger switch button: too invasive, Appearance on both sides is the only switch surface). Fingerprinting controls stay ungated in both settings pages. Gates: live chrome E2E (helper default, pref flip both ways, design button removed since, Settings routes to about:aethersettings vs about:preferences 4/4), packaged omni 7/7, stock settings regression clean. The switch is also inside both settings pages: an Interface design row in our Appearance plus Aether/Firefox radios in stock Appearance under Browser theme (with a legacy radiogroup fallback in Privacy, 4/4 XUL ids); a separate redesign group stamped zero items with no error despite a resolving setting, so the radios sit in groups that paint and fingerprinting stays fingerprinting. Cross-page coherence 3/3 (stock click flips the pref, our menu reflects it with no restart). Stock trust popup (the live entry point) carries our 12 toggles with master gating and expand, headed-screenshot verified; the protections-popup copy was reverted to keep one panel. Design switches raise a restart message bar plus Restart now button in stock Appearance (button has its own setting: nested items never stamp); the Restart buttons themselves are intentionally never clicked in tests. Dead ETP controls are hidden from both popups (markup hidden plus a display:none backstop citing the closed ETP-off decision): the trust ETP toggle section and, in the dormant protections popup, its master switch and fingerprinters row. Engine untouched, purely presentational; our twelve toggles are unaffected.
+- **Done (137: interface design switch):** one pref (`aether.ui.design`, default `aether`) with a helper module; hamburger Settings and both shields entry points gate on it with the stock fallbacks restored verbatim (no hamburger switch button: too invasive, Appearance on both sides is the only switch surface). Fingerprinting controls stay ungated in both settings pages. Gates: live chrome E2E (helper default, pref flip both ways, design button removed since, Settings routes to about:aethersettings vs about:preferences 4/4), packaged omni 7/7, stock settings regression clean. The switch is also inside both settings pages: an Interface design row in our Appearance plus Aetherfox/Firefox radios in stock Appearance under Browser theme (with a legacy radiogroup fallback in Privacy, 4/4 XUL ids); a separate redesign group stamped zero items with no error despite a resolving setting, so the radios sit in groups that paint and fingerprinting stays fingerprinting. Cross-page coherence 3/3 (stock click flips the pref, our menu reflects it with no restart). Stock trust popup (the live entry point) carries our 12 toggles with master gating and expand, headed-screenshot verified; the protections-popup copy was reverted to keep one panel. Design switches raise a restart message bar plus Restart now button in stock Appearance (button has its own setting: nested items never stamp); the Restart buttons themselves are intentionally never clicked in tests. Dead ETP controls are hidden from both popups (markup hidden plus a display:none backstop citing the closed ETP-off decision): the trust ETP toggle section and, in the dormant protections popup, its master switch and fingerprinters row. Engine untouched, purely presentational; our twelve toggles are unaffected.
 - **Done (140: motion-sensor shield):** Standard layer (`aether.fingerprinting.sensors`, default on): shielded windows are never registered as sensor listeners, so no motion, orientation, proximity or light events fire at all. Owns its registry entry and firefox default. Toggle in both settings with a breakage warning, row in our panel and the stock trust popup. Gates: synthetic test events arrive off (3 motion + orientation) and zero on; 17 toggles with pref write; stock checkbox visually confirmed. Full hide/show contrast needs hardware; empty-list behavior is the upstream-tested no-hardware state.
 - **Done (139: gamepad normalization):** Standard layer (`aether.fingerprinting.gamepads`, default on): pages see an empty list via the same master/kill/exempt shape as the cores gate. Toggle in both settings with a breakage warning, row in our panel (gamepad icon) and the stock trust popup. Owns its registry entry and firefox default like other engines; the 135 keeps only its own sections (a bad splice once swallowed upper hunks into it; recovered by rebuilding the keeper from sync). Gates: empty list both ways on hardware-less boxes with no errors, 16 toggles with pref write, stock checkbox visually confirmed.
 - **Done (138: media-device shield):** opt-in Strict layer (`aether.fingerprinting.mediaDevices`, default off with a disclaimer): pages see one generic device per listed kind with empty ids and per-origin group ids, pre-permission shape unchanged; prompts and capture keep working on the raw path. Owns its registry entry and firefox default like other engines. Toggle in both settings, row in our shields panel and the stock trust popup (mic icon), warning line in the device permission prompt on the trigger event. Gates: real hardware collapses to generics, group ids differ per origin, warning iff shield on, exempt via the proven helper.
@@ -1191,12 +1299,12 @@ headers: there should be none.
 - **Done (117: master kill-switch):** one pref gates the whole graded system (shared key helper + core-count normalization check it first), per-surface kills refine it; backend for the end-state UI (master + per-surface toggles). Default on. Gates: master-off run fully raw on every surface (cores back to 24, stock renderer), identical to the all-off control; series OK (44 applied, 71 covered, 0 conflicts), tree diff 0/0/0, TODO OK, build+package exit 0 with 0 warnings, version string, headless smoke 0 chrome errors, MAR rebuilt with matching BuildID.
 - **Done (118: buffer channel noise on first extraction):** stored AudioBuffer samples noised at most once, on first extraction, keyed by the extracting reader's site (later readers stable; CopyToChannel rewrites clear the key); detached shared storage never mutated, CopyFromChannel noises only its outgoing copy with absolute sample indexing. Harness digests rendered getChannelData on both origins. Debugging: analyser needed warmup reads (first post-render reads settle); stale-port trap resurfaced (kill patterns). Gates: buffer digests stable + cross-differing, all previous gates still green; series OK (44 applied, 72 covered, 0 conflicts), tree diff 0/0/0, TODO OK, build+package exit 0 with 0 warnings, version string, headless smoke 0 chrome errors, MAR rebuilt with matching BuildID.
 - **Done (119: per-site exceptions + renderer-space fix):** exact base-domain exempt prefs per surface or all surfaces, checked synchronously (backend for the broken-site switch). Its own gate caught a real defect: the 8-entry renderer table collides pairwise at p=1/8, so triples are now generated parametrically (family x model x PCI, ~800k combos, sanitizer-shaped, coherent). Separately, the first from-scratch gate-1 since 103 caught a latent series break: 105 carried a byte-identical duplicate of 02's syncedTabs.ftl deletion (proven mechanically, section dropped; regeneration impossible, states gone; backup kept at Temp/opencode/aether/105-backup.patch). Full series now applies clean from base and reproduces WORK 0/0/0. Gates: exempt origin reads raw baselines while the other stays noised; series from-scratch green, tree diff 0/0/0, TODO OK, build+package exit 0, version string, headless smoke 0 chrome errors, MAR rebuilt with matching BuildID.
-- **Done (120: Firefox UA compat token):** Google served its legacy basic-HTML page because our UA carries no Firefox token (only Aether/156.0.1). Flipped the upstream compat switch so HTTP and JS UAs read Firefox/156.0 alongside the honest Aether token; blends us with the Firefox anonymity set too. Stays user-overridable. Gates: packaged default true, runtime UA verified over Marionette, series OK (45 applied, 73 covered, 0 conflicts), tree diff 0/0/0, TODO OK, build+package exit 0, version string, headless smoke 0 chrome errors, MAR rebuilt with matching BuildID.
+- **Done (120: Firefox UA compat token):** Google served its legacy basic-HTML page because our UA carries no Firefox token (only Aetherfox/156.0.1). Flipped the upstream compat switch so HTTP and JS UAs read Firefox/156.0 alongside the honest Aetherfox token; blends us with the Firefox anonymity set too. Stays user-overridable. Gates: packaged default true, runtime UA verified over Marionette, series OK (45 applied, 73 covered, 0 conflicts), tree diff 0/0/0, TODO OK, build+package exit 0, version string, headless smoke 0 chrome errors, MAR rebuilt with matching BuildID.
 - **Done (121: worker core count):** WorkerNavigator had its own HardwareConcurrency path leaking real cores in workers (caught live on CreepJS: window 8, workers 24). Same contract there, keyed by the worker principal; shared module gains the exported SiteExempted helper used by both Navigator call sites. Harness spawns a same-origin worker on both origins. Gates: 8/8 everywhere with prefs on, 24/24 agreeing with them off, exempt split respected; series OK (45 applied, 74 covered, 0 conflicts), tree diff 0/0/0, TODO OK, build+package exit 0, version string, headless smoke 0 chrome errors, MAR rebuilt with matching BuildID.
 - **Done (122: own shields panel):** the shield button opens our protections UI instead of the Firefox popup (XUL panelview, own controller, own Fluent copy, own `aether-*` CSS isolated for rebase and the future theme switch); ETP retired to custom/off with partitioning, query stripping and bounce protection kept. Visual pass: real panel-chrome variable names (`--panel-background-color/text/box-shadow`), violet toggle tokens, handmade icons moved from data-URIs (context-paint does not substitute there) to `chrome://` skin SVGs with context-paint, panel radius 14→10 with the shadow kept inside its margin room. Debugging: inline popup handlers die on CSP (listeners instead), headless screenshots skip layered popups (GDI needs CAPTUREBLT). Gates: series OK (46 applied, 75 covered, 0 conflicts), tree diff 0/0/0, TODO OK, build+package exit 0, version string, headless smoke 0 chrome errors, headed screenshots verified light + dark, MAR rebuilt with matching BuildID.
-- **Done (123: trust panel reroute):** the second site-info entry point (trust icon, "Aether is on guard") opens our shields panel too; old popups stay in tree unused. Gates: same series/tree/TODO/build/package/smoke/MAR as 122.
+- **Done (123: trust panel reroute):** the second site-info entry point (trust icon, "Aetherfox is on guard") opens our shields panel too; old popups stay in tree unused. Gates: same series/tree/TODO/build/package/smoke/MAR as 122.
 - **Done (124: block known fingerprinters from a vendored snapshot):** Disconnect open list (FingerprintingGeneral + FingerprintingInvasive, 556 domains, CC BY-NC-SA, static per-release snapshot, zero runtime list traffic) embedded in a new `toolkit/modules/AetherFingerprinterBlock.sys.mjs` system observer on `http-on-modify-request`, started from `BrowserGlue._beforeUIStartup`; cancels third-party listed loads only (first-party always passes, undeterminable fails open). Own master pref default on + test-only extra-hosts pref; own toggle at the top of Settings > Privacy & Security. Debugging: `Services` is a system-module global (importing it aborts startup and hangs Marionette sessions); `loadInfo.loadingDocument` is a Document, third-party proof needs `loadingPrincipal.asciiHost`. Gates: block-on (third-party script + frame blocked, first-party runs) and toggle-off (everything loads) PASS; series OK (47 applied, 76 covered, 0 conflicts), tree diff 0/0/0, TODO OK, build+package exit 0, version string, headless smoke on about:preferences 0 chrome errors, MAR rebuilt with matching BuildID.
-- **Done (125: stock Firefox UA):** the trailing \Aether/156.0.1\ token (~17 stable bits while our set is small) is off by default; \BuildUserAgent\ skips the app portion unless \general.useragent.showAppToken\ is true (any \general.useragent.*\ change rebuilds the UA live, so the toggle needs no restart). \ppVersion\ already reports the legacy stock value; platform/oscpu coherent; buildID is already a fixed value shared by all installs. Gates: stock UA byte-exact + coherence values PASS, opt-in tail PASS; series OK (48 applied, 77 covered, 0 conflicts), tree diff 0/0/0, TODO OK, build+package exit 0 with 0 warnings, version string, headless smoke 0 chrome errors, MAR rebuilt with matching BuildID.
+- **Done (125: stock Firefox UA):** the trailing \Aetherfox/156.0.1\ token (~17 stable bits while our set is small) is off by default; \BuildUserAgent\ skips the app portion unless \general.useragent.showAppToken\ is true (any \general.useragent.*\ change rebuilds the UA live, so the toggle needs no restart). \ppVersion\ already reports the legacy stock value; platform/oscpu coherent; buildID is already a fixed value shared by all installs. Gates: stock UA byte-exact + coherence values PASS, opt-in tail PASS; series OK (48 applied, 77 covered, 0 conflicts), tree diff 0/0/0, TODO OK, build+package exit 0 with 0 warnings, version string, headless smoke 0 chrome errors, MAR rebuilt with matching BuildID.
 - **Network silence of the setup has not been measured** end to end. The two
   earlier attempts failed and the connections that were seen belonged to
   `aether.exe` (launched by the stub at the end), not to the installer. A monitor
