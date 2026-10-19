@@ -19,6 +19,9 @@ This is enforced in code, not in configuration:
   - UpdateService._selectAndInstallUpdate() offers the update to the user
     instead of downloading it, even if something claims that automatic
     updates are enabled.
+  - BackgroundUpdate says so in its own words: the reason why the
+    background task does nothing is that updates are manual-only by
+    design, not that some policy is enabled.
 
 The rest of the manual-only behaviour was already there:
 UpdateService.manualUpdateOnly is unconditionally true (core/09), the
@@ -119,3 +122,17 @@ index 5148a6fd71a273510e83e445a9a0dd6e854d6062..ed8476291213cfc670952a1bc932a240
      if (!updateAuto) {
        LOG(
          "UpdateService:_selectAndInstallUpdate - prompting because silent " +
+diff --git a/toolkit/mozapps/update/BackgroundUpdate.sys.mjs b/toolkit/mozapps/update/BackgroundUpdate.sys.mjs
+index 881904df38a0138ee2d2874cdb18979f2b43ee85..d0c8298d29a93553e39e6ba59da34a41fba7d950 100644
+--- a/toolkit/mozapps/update/BackgroundUpdate.sys.mjs
++++ b/toolkit/mozapps/update/BackgroundUpdate.sys.mjs
+@@ -1038,7 +1038,8 @@ BackgroundUpdate.REASON = {
+     "updates cannot usually stage and cannot usually apply",
+   LANGPACK_INSTALLED:
+     "app.update.langpack.enabled=true and at least one langpack is installed",
+-  MANUAL_UPDATE_ONLY: "the ManualAppUpdateOnly policy is enabled",
++  MANUAL_UPDATE_ONLY:
++    "updates are manual-only by design (Aether), the user starts them",
+   NO_DEFAULT_PROFILE_EXISTS: "no default profile exists",
+   NOT_DEFAULT_PROFILE: "not default profile",
+   NO_APP_UPDATE_AUTO: "app.update.auto=false",
