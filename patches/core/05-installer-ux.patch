@@ -1444,10 +1444,10 @@ index b81c7ef59be0d25f67668215028008a451860df2..3fcf3e709bccd2055d73d60e64156d54
      DeleteRegValue SHCTX "$0" "URLInfoAbout"
  ; Don't add URLUpdateInfo which is the release notes url except for the release
 diff --git a/browser/installer/windows/nsis/stub.nsh b/browser/installer/windows/nsis/stub.nsh
-index 0910ead2797e75b275599f017b70a867c39c0513..12fc3c84de349e5599f6142ac80bc95df98e9217 100644
+index 82858663a54fabef1ab624d1f9c726dbea048828..3d90f4aa0165e6d3d8db8a9685c31d61290fe264 100644
 --- a/browser/installer/windows/nsis/stub.nsh
 +++ b/browser/installer/windows/nsis/stub.nsh
-@@ -311,6 +311,9 @@ Caption "$(INSTALLER_WIN_CAPTION)"
+@@ -310,6 +310,9 @@ Caption "$(INSTALLER_WIN_CAPTION)"
    GetFunctionAddress $0 finishInstallChoice
    WebBrowser::RegisterCustomFunction $0 "finishInstall"
  
@@ -1457,7 +1457,7 @@ index 0910ead2797e75b275599f017b70a867c39c0513..12fc3c84de349e5599f6142ac80bc95d
    GetFunctionAddress $0 getProgressBarPercent
    WebBrowser::RegisterCustomFunction $0 "getProgressBarPercent"
  !macroend
-@@ -347,6 +350,23 @@ Function finishInstallChoice
+@@ -346,6 +349,23 @@ Function finishInstallChoice
    Push $0
  FunctionEnd
  
@@ -1481,7 +1481,7 @@ index 0910ead2797e75b275599f017b70a867c39c0513..12fc3c84de349e5599f6142ac80bc95d
  Function getProgressBarPercent
    ; Custom functions always get one parameter, which we don't use here.
    ; But we will use $0 as a scratch accumulator register.
-@@ -401,6 +421,14 @@ Function getUIString
+@@ -400,6 +420,14 @@ Function getUIString
        Push "$(STUB_FINISH_LAUNCH_BUTTON)"
      ${Case} "finish_close"
        Push "$(STUB_FINISH_CLOSE_BUTTON)"
@@ -1496,9 +1496,49 @@ index 0910ead2797e75b275599f017b70a867c39c0513..12fc3c84de349e5599f6142ac80bc95d
      ${Case} "installing_label"
        Push "$(STUB_INSTALLING_LABEL2)"
      ${Case} "installing_blurb_0"
-@@ -426,6 +454,24 @@ Function getUIString
-   ${EndSelect}
+@@ -497,6 +525,9 @@ Function createInstall
+   File /oname=$PLUGINSDIR\installing.html "installing.html"
+   File /oname=$PLUGINSDIR\installing_page.css "installing_page.css"
+   File /oname=$PLUGINSDIR\installing.js "installing.js"
++  File /oname=$PLUGINSDIR\comfortaa-bold.woff "comfortaa-bold.woff"
++  File /oname=$PLUGINSDIR\comfortaa-medium.woff "comfortaa-medium.woff"
++  File /oname=$PLUGINSDIR\quicksand-bold.woff "quicksand-bold.woff"
+   WebBrowser::ShowPage "$PLUGINSDIR\installing.html"
  FunctionEnd
+ 
+@@ -911,6 +942,9 @@ Function FinishInstall
+   File /oname=$PLUGINSDIR\launch.html "launch.html"
+   File /oname=$PLUGINSDIR\launch.js "launch.js"
+   File /oname=$PLUGINSDIR\launch_page.css "launch_page.css"
++  File /oname=$PLUGINSDIR\comfortaa-bold.woff "comfortaa-bold.woff"
++  File /oname=$PLUGINSDIR\comfortaa-medium.woff "comfortaa-medium.woff"
++  File /oname=$PLUGINSDIR\quicksand-bold.woff "quicksand-bold.woff"
+   WebBrowser::ShowPage "$PLUGINSDIR\launch.html"
+ FunctionEnd
+ 
+diff --git a/browser/installer/windows/nsis/stub.nsi b/browser/installer/windows/nsis/stub.nsi
+index 8cabcdffd8a9a22f665cdb53a1696bde0e05a48e..e62e61cdf27ec88b60de604c6a1df6192717e18e 100644
+--- a/browser/installer/windows/nsis/stub.nsi
++++ b/browser/installer/windows/nsis/stub.nsi
+@@ -17,8 +17,8 @@ RequestExecutionLevel user
+ !macro IsTestBreakpointSet breakpointNumber
+ !macroend
+ 
+-Icon "firefox64.ico"
+-PEAddResource "firefox64.ico" "#Icon" "#0007"
++Icon "setup.ico"
++PEAddResource "setup.ico" "#Icon" "#0007"
+ !define ICON_ID 0x0007
+ 
+ !include "LogicLib.nsh"
+@@ -40,10 +40,29 @@ FunctionEnd
+ !include "stub.nsh"
+ !include stub_helpers.nsh
+ 
++Page custom createWelcome
+ Page custom createProfileCleanup
+ Page custom createInstall ; Download / Installation page
+ Page instfiles
  
 +Function createWelcome
 +  IfSilent welcomeSilent
@@ -1518,52 +1558,9 @@ index 0910ead2797e75b275599f017b70a867c39c0513..12fc3c84de349e5599f6142ac80bc95d
 +  Abort
 +FunctionEnd
 +
- Function createInstall
-   ${If} $AbortInstallation != "false"
-     ; Skip the installation, but first send the telemetry
-@@ -498,6 +544,9 @@ Function createInstall
-   File /oname=$PLUGINSDIR\installing.html "installing.html"
-   File /oname=$PLUGINSDIR\installing_page.css "installing_page.css"
-   File /oname=$PLUGINSDIR\installing.js "installing.js"
-+  File /oname=$PLUGINSDIR\comfortaa-bold.woff "comfortaa-bold.woff"
-+  File /oname=$PLUGINSDIR\comfortaa-medium.woff "comfortaa-medium.woff"
-+  File /oname=$PLUGINSDIR\quicksand-bold.woff "quicksand-bold.woff"
-   WebBrowser::ShowPage "$PLUGINSDIR\installing.html"
- FunctionEnd
+ Function CanWrite
+   StrCpy $CanWriteToInstallDir "false"
  
-@@ -912,6 +961,9 @@ Function FinishInstall
-   File /oname=$PLUGINSDIR\launch.html "launch.html"
-   File /oname=$PLUGINSDIR\launch.js "launch.js"
-   File /oname=$PLUGINSDIR\launch_page.css "launch_page.css"
-+  File /oname=$PLUGINSDIR\comfortaa-bold.woff "comfortaa-bold.woff"
-+  File /oname=$PLUGINSDIR\comfortaa-medium.woff "comfortaa-medium.woff"
-+  File /oname=$PLUGINSDIR\quicksand-bold.woff "quicksand-bold.woff"
-   WebBrowser::ShowPage "$PLUGINSDIR\launch.html"
- FunctionEnd
- 
-diff --git a/browser/installer/windows/nsis/stub.nsi b/browser/installer/windows/nsis/stub.nsi
-index 8cabcdffd8a9a22f665cdb53a1696bde0e05a48e..58732bd8a7b3743a3478846f025c1e9e3144cdc7 100644
---- a/browser/installer/windows/nsis/stub.nsi
-+++ b/browser/installer/windows/nsis/stub.nsi
-@@ -17,8 +17,8 @@ RequestExecutionLevel user
- !macro IsTestBreakpointSet breakpointNumber
- !macroend
- 
--Icon "firefox64.ico"
--PEAddResource "firefox64.ico" "#Icon" "#0007"
-+Icon "setup.ico"
-+PEAddResource "setup.ico" "#Icon" "#0007"
- !define ICON_ID 0x0007
- 
- !include "LogicLib.nsh"
-@@ -40,6 +40,7 @@ FunctionEnd
- !include "stub.nsh"
- !include stub_helpers.nsh
- 
-+Page custom createWelcome
- Page custom createProfileCleanup
- Page custom createInstall ; Download / Installation page
- Page instfiles
 diff --git a/browser/installer/windows/nsis/stub_helpers.nsh b/browser/installer/windows/nsis/stub_helpers.nsh
 index e6d04b2d58dc83e88c958e3cc0b9b230828e3318..3bce96f935b8e4ebddf660833c02caf224ec43f0 100644
 --- a/browser/installer/windows/nsis/stub_helpers.nsh

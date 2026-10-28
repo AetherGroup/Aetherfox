@@ -1,0 +1,151 @@
+Aether: clear the page cache from the shields panel
+
+New option in the Aetherfox Shields panel: "Clear page cache". It drops
+the pages the browser kept on disk and in memory with the same sanitiser
+the "Clear browsing data" dialog uses, and the panel says it happened and
+offers the reload that makes the page pick up the fresh copy.
+
+From scratch, in the panel that already holds the protection switches:
+
+  - aetherProtectionsPanel.inc.xhtml: the new row and the row that
+    reports it.
+  - browser-aetherProtections.js: the handler (Sanitizer.sanitize) and the
+    wiring.
+  - aetherProtections.ftl: the strings.
+  - panel.css / jar.inc.mn: the new icon (aether-cache.svg).
+diff --git a/browser/base/content/browser-aetherProtections.js b/browser/base/content/browser-aetherProtections.js
+index fa2756fb09e8defe83c0f0ff5d0d7253a8cc6947..35ba832dbf18ed0cc4eb199177fee09560a17bab 100644
+--- a/browser/base/content/browser-aetherProtections.js
++++ b/browser/base/content/browser-aetherProtections.js
+@@ -17,6 +17,12 @@ const { AetherBlocker } = ChromeUtils.importESModule(
+   "resource://gre/modules/AetherBlocker.sys.mjs"
+ );
+ 
++// The page cache is cleared with the same sanitiser the "Clear browsing
++// data" dialog uses, so the disk and the memory cache go away in one go.
++const { Sanitizer } = ChromeUtils.importESModule(
++  "resource:///modules/Sanitizer.sys.mjs"
++);
++
+ const AETHER_COUNT_TOPIC = "aether-blocking-count";
+ 
+ var gAetherProtections = {
+@@ -61,6 +67,12 @@ var gAetherProtections = {
+       "click",
+       () => this._onReload()
+     );
++    this.$("#aether-protections-clear-cache").addEventListener("click", () =>
++      this._onClearCache()
++    );
++    this.$("#aether-protections-cache-reload").addEventListener("click", () =>
++      this._onReload()
++    );
+     this._inited = true;
+   },
+ 
+@@ -147,6 +159,7 @@ var gAetherProtections = {
+     this._ensureInit();
+     this.render();
+     this.$("#aether-protections-reload-row").hidden = true;
++    this.$("#aether-protections-cache-row").hidden = true;
+     let anchor = document.getElementById(
+       "tracking-protection-icon-container"
+     );
+@@ -383,6 +396,23 @@ var gAetherProtections = {
+     gBrowser.reload();
+   },
+ 
++  // Clear the page cache: every page the browser kept on disk (and in
++  // memory) is dropped, so the next visit fetches it from the network
++  // again. The user asked for it, so it happens once and the panel says
++  // so, with the reload that makes the page pick up the fresh copy.
++  async _onClearCache() {
++    const button = this.$("#aether-protections-clear-cache");
++    const row = this.$("#aether-protections-cache-row");
++    button.disabled = true;
++    try {
++      await Sanitizer.sanitize(["cache"]);
++    } catch (e) {
++      console.error("AetherProtections: clearing the page cache failed", e);
++    }
++    button.disabled = false;
++    row.hidden = false;
++  },
++
+   _onSettingsLink() {
+     this.panel.hidePopup();
+     window.openTrustedLinkIn("about:aethersettings#shield", "tab");
+diff --git a/browser/components/controlcenter/content/aetherProtectionsPanel.inc.xhtml b/browser/components/controlcenter/content/aetherProtectionsPanel.inc.xhtml
+index 9123f4a801ce57628c3b55be9274be8f631705f0..522199ec70ced8c6e3b6a6988b62a97a3d7bc84e 100644
+--- a/browser/components/controlcenter/content/aetherProtectionsPanel.inc.xhtml
++++ b/browser/components/controlcenter/content/aetherProtectionsPanel.inc.xhtml
+@@ -60,6 +60,21 @@
+       </html:div>
+     </html:button>
+ 
++    <html:div class="aether-sep"></html:div>
++
++    <html:button id="aether-protections-clear-cache" class="aether-row aether-site">
++      <html:span class="aether-ic" data-icon="cache" aria-hidden="true"></html:span>
++      <html:div class="aether-txt">
++        <html:span class="aether-t" data-l10n-id="aether-protections-clear-cache-title"></html:span>
++        <html:span class="aether-d" data-l10n-id="aether-protections-clear-cache-desc"></html:span>
++      </html:div>
++    </html:button>
++
++    <html:div id="aether-protections-cache-row" class="aether-reload" hidden="true">
++      <html:span class="aether-d" data-l10n-id="aether-protections-clear-cache-done"></html:span>
++      <html:button id="aether-protections-cache-reload" class="aether-go" data-l10n-id="aether-protections-reload"></html:button>
++    </html:div>
++
+     <html:div id="aether-protections-reload-row" class="aether-reload" hidden="true">
+       <html:span class="aether-d" data-l10n-id="aether-protections-reload-desc"></html:span>
+       <html:button id="aether-protections-reload-button" class="aether-go" data-l10n-id="aether-protections-reload"></html:button>
+diff --git a/browser/locales/en-US/browser/aetherProtections.ftl b/browser/locales/en-US/browser/aetherProtections.ftl
+index 1e094b7be6174104334f7a679b611fb11348e9b3..4831d2ec0a0e7613c5e4c040e77226f53cb7b64c 100644
+--- a/browser/locales/en-US/browser/aetherProtections.ftl
++++ b/browser/locales/en-US/browser/aetherProtections.ftl
+@@ -20,6 +20,9 @@ aether-protections-settings-title = Fingerprint settings
+ aether-protections-settings-desc = Choose Standard, Strict or Custom.
+ aether-protections-adblock-settings-title = Adblock settings
+ aether-protections-adblock-settings-desc = Ads, trackers and annoyances, blocked before they load.
++aether-protections-clear-cache-title = Clear page cache
++aether-protections-clear-cache-desc = Drop the pages the browser kept, so they load from the network again.
++aether-protections-clear-cache-done = Page cache cleared.
+ aether-protections-canvas-title = Canvas images
+ aether-protections-canvas-desc = Altered pixels, same look.
+ aether-protections-canvas-toggle =
+diff --git a/browser/themes/shared/controlcenter/panel.css b/browser/themes/shared/controlcenter/panel.css
+index eb74b21a85de732376c8467ea160833d93e89f32..8584e6eef025469a11420c30f3826e78fc36ba80 100644
+--- a/browser/themes/shared/controlcenter/panel.css
++++ b/browser/themes/shared/controlcenter/panel.css
+@@ -1265,6 +1265,7 @@
+ .aether-ic[data-icon="sensors"] { background-image: url("chrome://browser/skin/controlcenter/aether-sensors.svg"); }
+ .aether-ic[data-icon="geometry"] { background-image: url("chrome://browser/skin/controlcenter/aether-geometry.svg"); }
+ .aether-ic[data-icon="pause"] { background-image: url("chrome://browser/skin/controlcenter/aether-pause.svg"); }
++.aether-ic[data-icon="cache"] { background-image: url("chrome://browser/skin/controlcenter/aether-cache.svg"); }
+ 
+ .aether-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; }
+ .aether-row:hover { background: var(--aether-hover); }
+diff --git a/browser/themes/shared/jar.inc.mn b/browser/themes/shared/jar.inc.mn
+index ed2d0f27ffd4a136786f21697161b9c36cabf695..f3496c30980a625eeb28c0d9c68215a46a1efc4e 100644
+--- a/browser/themes/shared/jar.inc.mn
++++ b/browser/themes/shared/jar.inc.mn
+@@ -94,6 +94,7 @@
+   skin/classic/browser/controlcenter/aether-gamepad.svg              (../shared/controlcenter/aether-gamepad.svg)
+   skin/classic/browser/controlcenter/aether-sensors.svg              (../shared/controlcenter/aether-sensors.svg)
+   skin/classic/browser/controlcenter/aether-geometry.svg             (../shared/controlcenter/aether-geometry.svg)
++  skin/classic/browser/controlcenter/aether-cache.svg                (../shared/controlcenter/aether-cache.svg)
+   skin/classic/browser/customizableui/customizeMode.css        (../shared/customizableui/customizeMode.css)
+   skin/classic/browser/customizableui/panelUI-shared.css       (../shared/customizableui/panelUI-shared.css)
+ 
+diff --git a/browser/themes/shared/controlcenter/aether-cache.svg b/browser/themes/shared/controlcenter/aether-cache.svg
+new file mode 100644
+index 0000000000000000000000000000000000000000..2b8010919ae3d87f4a3bb5ed0fd03d2179e5f1f7
+--- /dev/null
++++ b/browser/themes/shared/controlcenter/aether-cache.svg
+@@ -0,0 +1,4 @@
++<!-- This Source Code Form is subject to the terms of the Mozilla Public
++   - License, v. 2.0. If a copy of the MPL was not distributed with this
++   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
++<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="context-stroke" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 7h15"/><path d="M9.8 7V5.4A1.4 1.4 0 0 1 11.2 4h1.6a1.4 1.4 0 0 1 1.4 1.4V7"/><path d="M6.8 7l.7 12.1A1.9 1.9 0 0 0 9.4 21h5.2a1.9 1.9 0 0 0 1.9-1.9L17.2 7"/><path d="M10.4 11v5.6M13.6 11v5.6"/></svg>

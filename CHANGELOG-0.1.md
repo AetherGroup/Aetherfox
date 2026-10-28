@@ -4,7 +4,7 @@ First release. Firefox 156.0.1 with telemetry, Sync/FxA and several Mozilla
 subsystems removed, shipped as a public patch stack so the whole delta against
 upstream can be audited without trusting a binary.
 
-The stack holds 20 thematic groups (squash of the 171-unit history). Each
+The stack holds 22 thematic groups (squash of the 171-unit history). Each
 group file carries the headers of its member units, so nothing of the
 history is lost; the per-unit backup lives outside the repo.
 
@@ -30,13 +30,13 @@ Squashed from 24 units: 03-telemetry-core, 04-telemetry-feat-a, 05-telemetry-fea
 
 ## 04. Aether: final telemetry sweep
 
-Optional Features section, dead pings, gecko-trace out, last Glean writers, final sweep, and the offline stub foundation.
+Optional Features section, dead pings, gecko-trace out, last Glean writers, final sweep, and the offline stub foundation. The stub also stops declaring the admin-check macro nothing calls any more, because dropping the self-elevation call left it as dead code.
 
 Squashed from 6 units: 29-optional-features, 30-dead-pings, 31-no-gecko-trace, 32-stub-offline, 33-last-glean-writers, 34-final-cleanup-sweep.
 
 ## 05. Aether: installer UX
 
-Offline NSIS stub flow, welcome gate, splash, modern UI, setup icon.
+Offline NSIS stub flow, welcome gate, splash, modern UI, setup icon. The welcome page function lives in the script that declares the page instead of the shared include, so the silent test installer stops compiling a page it never shows.
 
 Squashed from 1 units: 35-installer-ux.
 
@@ -131,3 +131,25 @@ are identifiers, not links, and stay untouched.
 Updates are user-driven, enforced in the code: no startup check, no automatic
 download, no policy hooks. The user starts the search, the user starts the
 download, the user restarts.
+
+## 21. Aether: clear the page cache from the shields panel
+
+New option in the Aetherfox Shields panel: "Clear page cache". It drops
+the pages the browser kept on disk and in memory with the same sanitiser
+the "Clear browsing data" dialog uses, and the panel says it happened and
+offers the reload that makes the page pick up the fresh copy.
+(Also repaired here: the shields panel had two Fluent toggles whose
+messages parsed as junk, which surfaced as "uncaught exception: undefined"
+in the console on every window; the panel's blocked-count line now passes
+its initial argument instead of tripping the Fluent resolver.)
+
+## 22. Aether: no macro redefinition in the allocator
+
+`memory/mozalloc/cxxalloc.cpp` redefined `MOZALLOC_EXPORT_NEW` after
+`mozilla/mozalloc.h` had already set it, so clang reported
+`-Wmacro-redefined` on every full build. It now undefines the macro first: the
+exports keep `MFBT_API` and the header's inline declarations keep
+`MOZ_ALWAYS_INLINE_EVEN_DEBUG`, so the generated code is identical and the
+warning is gone. With the two NSIS dead-code warnings above, the release build
+now reports zero first-party warnings.
+

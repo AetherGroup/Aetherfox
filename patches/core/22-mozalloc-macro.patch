@@ -1,0 +1,23 @@
+Aether: no macro redefinition in cxxalloc.cpp
+
+memory/mozalloc/cxxalloc.cpp redefines MOZALLOC_EXPORT_NEW after
+mozilla/mozalloc.h has already set it, which clang reports as
+-Wmacro-redefined on every full build. Undefine it first instead: the
+declarations mozalloc.h emits keep MOZ_ALWAYS_INLINE_EVEN_DEBUG while
+the definitions in this file keep MFBT_API, so the generated code is
+unchanged and the warning is gone.
+diff --git a/memory/mozalloc/cxxalloc.cpp b/memory/mozalloc/cxxalloc.cpp
+index edb58a0b22bc2381a5ae6d71f6a3fedd02d59c46..b15962abbe65e6fe2622a1fb34d8c2c21e0bfbaa 100644
+--- a/memory/mozalloc/cxxalloc.cpp
++++ b/memory/mozalloc/cxxalloc.cpp
+@@ -30,6 +30,10 @@ namespace std {
+ struct nothrow_t;
+ }
+ 
++// mozilla/mozalloc.h already sets this for the inline declarations it emits;
++// these definitions have to be exported instead, so undefine it rather than
++// redefine it (the latter is -Wmacro-redefined on every build).
++#undef MOZALLOC_EXPORT_NEW
+ #define MOZALLOC_EXPORT_NEW MFBT_API
+ 
+ #include "mozilla/cxxalloc.h"

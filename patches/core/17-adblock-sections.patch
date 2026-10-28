@@ -1237,7 +1237,7 @@ index ab9409016a221f497b8211974957125dbcef5aad..9123f4a801ce57628c3b55be9274be8f
        <html:div class="aether-head-t">
          <html:span id="aether-protections-title" class="aether-title" data-l10n-id="aether-protections-title"></html:span>
          <html:span id="aether-protections-host" class="aether-host"></html:span>
-+        <html:span id="aether-protections-count" class="aether-d" data-l10n-id="aether-protections-count"></html:span>
++        <html:span id="aether-protections-count" class="aether-d" data-l10n-id="aether-protections-count" data-l10n-args='{"count": "0"}'></html:span>
        </html:div>
      </html:div>
  
@@ -1604,15 +1604,17 @@ diff --git a/browser/locales/en-US/browser/aetherProtections.ftl b/browser/local
 index 854a08a2f141ae79e626d46d02064e002ce83d0e..03777625119775e4278fe1064d0b9e60e1e309a8 100644
 --- a/browser/locales/en-US/browser/aetherProtections.ftl
 +++ b/browser/locales/en-US/browser/aetherProtections.ftl
-@@ -10,9 +10,15 @@ aether-protections-expand =
+@@ -10,9 +10,16 @@ aether-protections-expand =
  aether-protections-master-title = Fingerprint
  aether-protections-master-desc = What sites can measure about this browser.
  aether-protections-master-toggle =
++    .aria-label = Fingerprint protection
 +aether-protections-adblock-title = Ad blocking
 +aether-protections-adblock-desc = Turn off ads and trackers on this site only.
 +aether-protections-adblock-toggle =
++    .aria-label = Ad blocking protection
 +aether-protections-count = { $count } blocked on this page
-     .aria-label = Fingerprint protection
+-    .aria-label = Fingerprint protection
  aether-protections-settings-title = Fingerprint settings
  aether-protections-settings-desc = Choose Standard, Strict or Custom.
 +aether-protections-adblock-settings-title = Adblock settings
@@ -1620,7 +1622,7 @@ index 854a08a2f141ae79e626d46d02064e002ce83d0e..03777625119775e4278fe1064d0b9e60
  aether-protections-canvas-title = Canvas images
  aether-protections-canvas-desc = Altered pixels, same look.
  aether-protections-canvas-toggle =
-@@ -57,10 +63,6 @@ aether-protections-sensors-title = Motion sensors
+@@ -57,10 +64,6 @@ aether-protections-sensors-title = Motion sensors
  aether-protections-sensors-desc = No readings; motion features off.
  aether-protections-sensors-toggle =
      .aria-label = Motion sensors protection

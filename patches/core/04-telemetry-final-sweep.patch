@@ -2169,10 +2169,16 @@ index 1e0358a0e7930902e5270051660a68694fe9c195..196305ee37a657a8045470cc4eda8cc1
 -  Call SendPingIfApplicable
  FunctionEnd
 diff --git a/browser/installer/windows/nsis/stub.nsh b/browser/installer/windows/nsis/stub.nsh
-index fa12e1209ea678fc8463dc1942e8375a872d8433..0910ead2797e75b275599f017b70a867c39c0513 100644
+index fa12e1209ea678fc8463dc1942e8375a872d8433..82858663a54fabef1ab624d1f9c726dbea048828 100644
 --- a/browser/installer/windows/nsis/stub.nsh
 +++ b/browser/installer/windows/nsis/stub.nsh
-@@ -273,9 +273,6 @@ Var ArchToInstall
+@@ -267,15 +267,11 @@ Var ArchToInstall
+ !insertmacro GetParent
+ !insertmacro GetSingleInstallPath
+ !insertmacro InitHashAppModelId
+-!insertmacro IsUserAdmin
+ !insertmacro RemovePrecompleteEntries
+ !insertmacro SetBrandNameVars
  !insertmacro ITBL3Create
  !insertmacro UnloadUAC
  
@@ -2182,7 +2188,7 @@ index fa12e1209ea678fc8463dc1942e8375a872d8433..0910ead2797e75b275599f017b70a867
  VIAddVersionKey "FileDescription" "${BrandShortName} Installer"
  VIAddVersionKey "OriginalFilename" "setup-stub.exe"
  
-@@ -311,6 +308,9 @@ Caption "$(INSTALLER_WIN_CAPTION)"
+@@ -311,6 +307,9 @@ Caption "$(INSTALLER_WIN_CAPTION)"
    GetFunctionAddress $0 gotoInstallPage
    WebBrowser::RegisterCustomFunction $0 "gotoInstallPage"
  
@@ -2192,7 +2198,7 @@ index fa12e1209ea678fc8463dc1942e8375a872d8433..0910ead2797e75b275599f017b70a867
    GetFunctionAddress $0 getProgressBarPercent
    WebBrowser::RegisterCustomFunction $0 "getProgressBarPercent"
  !macroend
-@@ -334,6 +334,19 @@ Function gotoInstallPage
+@@ -334,6 +333,19 @@ Function gotoInstallPage
    Push $0
  FunctionEnd
  
@@ -2212,7 +2218,7 @@ index fa12e1209ea678fc8463dc1942e8375a872d8433..0910ead2797e75b275599f017b70a867
  Function getProgressBarPercent
    ; Custom functions always get one parameter, which we don't use here.
    ; But we will use $0 as a scratch accumulator register.
-@@ -382,6 +395,12 @@ Function getUIString
+@@ -382,6 +394,12 @@ Function getUIString
        ${EndIf}
      ${Case} "cleanup_checkbox"
        Push "$(STUB_CLEANUP_CHECKBOX_LABEL3)"
@@ -2225,7 +2231,7 @@ index fa12e1209ea678fc8463dc1942e8375a872d8433..0910ead2797e75b275599f017b70a867
      ${Case} "installing_label"
        Push "$(STUB_INSTALLING_LABEL2)"
      ${Case} "installing_blurb_0"
-@@ -494,6 +513,27 @@ FunctionEnd
+@@ -494,6 +512,27 @@ FunctionEnd
  Function StartDownload
    WebBrowser::CancelTimer $TimerHandle
  
@@ -2253,7 +2259,7 @@ index fa12e1209ea678fc8463dc1942e8375a872d8433..0910ead2797e75b275599f017b70a867
    Call GetDownloadURL
    Pop $0
    InetBgDL::Get "$0" "$PLUGINSDIR\download.exe" \
-@@ -788,24 +828,12 @@ Function SendPing
+@@ -788,24 +827,12 @@ Function SendPing
      StrCpy $EndInstallPhaseTickCount "$EndFinishPhaseTickCount"
    ${EndIf}
  
@@ -2278,7 +2284,7 @@ index fa12e1209ea678fc8463dc1942e8375a872d8433..0910ead2797e75b275599f017b70a867
  Function CheckInstall
    IntOp $InstallCounterStep $InstallCounterStep + 1
    ${If} $InstallCounterStep >= $InstallTotalSteps
-@@ -873,7 +901,18 @@ Function FinishInstall
+@@ -873,7 +900,18 @@ Function FinishInstall
      Call UpdateInstalledPostSigningDataFile
    ${EndIf}
  
@@ -2298,7 +2304,7 @@ index fa12e1209ea678fc8463dc1942e8375a872d8433..0910ead2797e75b275599f017b70a867
  FunctionEnd
  
  Function IsInstallerLaunchedByDesktopLauncher
-@@ -1415,8 +1454,12 @@ Function CommonOnInit
+@@ -1415,8 +1453,12 @@ Function CommonOnInit
  
    !insertmacro IsTestBreakpointSet ${TestBreakpointArchToInstall}
  
@@ -2313,7 +2319,7 @@ index fa12e1209ea678fc8463dc1942e8375a872d8433..0910ead2797e75b275599f017b70a867
  
    ; If we have any existing installation, use its location as the default
    ; path for this install, even if it's not the same architecture.
-@@ -1463,13 +1506,19 @@ Function CommonOnInit
+@@ -1463,13 +1505,19 @@ Function CommonOnInit
    StrCpy $CheckboxCleanupProfile "0"
    StrCpy $ProgressCompleted "0"
  !ifdef MOZ_MAINTENANCE_SERVICE
