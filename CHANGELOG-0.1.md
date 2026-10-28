@@ -30,7 +30,7 @@ Squashed from 24 units: 03-telemetry-core, 04-telemetry-feat-a, 05-telemetry-fea
 
 ## 04. Aether: final telemetry sweep
 
-Optional Features section, dead pings, gecko-trace out, last Glean writers, final sweep, and the offline stub foundation. The stub also stops declaring the admin-check macro nothing calls any more, because dropping the self-elevation call left it as dead code.
+Optional Features section, dead pings, gecko-trace out, last Glean writers, final sweep, and the offline stub foundation. The stub also stops declaring the admin-check macro nothing calls any more, because dropping the self-elevation call left it as dead code, and the profile-directory check the full installer stopped calling goes away with its two unit tests.
 
 Squashed from 6 units: 29-optional-features, 30-dead-pings, 31-no-gecko-trace, 32-stub-offline, 33-last-glean-writers, 34-final-cleanup-sweep.
 

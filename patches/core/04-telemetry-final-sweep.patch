@@ -2984,8 +2984,28 @@ index ae2d827e7e26eb09c3162978b4fe95924487923d..00000000000000000000000000000000
 -    ${EndIf}
 -  ${EndIf}
 -FunctionEnd
+diff --git a/browser/installer/windows/nsis/install_dir_helpers.nsh b/browser/installer/windows/nsis/install_dir_helpers.nsh
+index 9145e2256c6b207273505021c2d93e08f6bed7b3..20362f8d4b1281f2103e583fb50da26c892ebabd 100644
+--- a/browser/installer/windows/nsis/install_dir_helpers.nsh
++++ b/browser/installer/windows/nsis/install_dir_helpers.nsh
+@@ -59,15 +59,4 @@
+ !macroend
+ !define UseExistingInstallPathIfNoInstallDirArg "!insertmacro UseExistingInstallPathIfNoInstallDirArg"
+ 
+-Function GetProfileDirExisted
+-  Push $0
+-  ${GetLocalAppDataFolder} $0
+-  ${If} ${FileExists} "$0\Mozilla\Firefox"
+-    StrCpy $0 "true"
+-  ${Else}
+-    StrCpy $0 "false"
+-  ${EndIf}
+-  Exch $0
+-FunctionEnd
+-
+ !endif
 diff --git a/browser/installer/windows/nsis/test_stub.nsi b/browser/installer/windows/nsis/test_stub.nsi
-index c6efb4a867a4bfa1ebb71e198b2ba30b478eadeb..761ba3afa5579c1ea75de319aa1640a6767f4ffd 100644
+index c6efb4a867a4bfa1ebb71e198b2ba30b478eadeb..fbc859a89ce07956d79b91626488389018cff43d 100644
 --- a/browser/installer/windows/nsis/test_stub.nsi
 +++ b/browser/installer/windows/nsis/test_stub.nsi
 @@ -130,8 +130,6 @@ Var MockLocalAppDataFolder
@@ -3006,7 +3026,7 @@ index c6efb4a867a4bfa1ebb71e198b2ba30b478eadeb..761ba3afa5579c1ea75de319aa1640a6
  ; .onInit is responsible for running the tests
  Function .onInit
      Call AttachConsole
-@@ -178,9 +174,6 @@ Function .onInit
+@@ -178,15 +174,9 @@ Function .onInit
      ${UnitTest} TestGetInstallationTypeFull_UTF16
      ${UnitTest} TestGetInstallationTypeOther_UTF16
  
@@ -3016,7 +3036,13 @@ index c6efb4a867a4bfa1ebb71e198b2ba30b478eadeb..761ba3afa5579c1ea75de319aa1640a6
      ${UnitTest} TestGetHadExistingProfileFailure
      ${UnitTest} TestGetHadExistingProfileSuccess
  
-@@ -216,8 +209,6 @@ Function .onInit
+-    ${UnitTest} TestGetProfileDirExistedFailure
+-    ${UnitTest} TestGetProfileDirExistedSuccess
+-
+     ${UnitTest} TestIsInstallerLaunchedByDesktopLauncherNoParameter
+     ${UnitTest} TestIsInstallerLaunchedByDesktopLauncherUnknownParameter
+     ${UnitTest} TestIsInstallerLaunchedByDesktopLauncherSuccess
+@@ -216,8 +206,6 @@ Function .onInit
      ${UnitTest} TestPostUpdateTargetArgs
      ${UnitTest} TestPostUpdateTargetGuess
  
@@ -3025,7 +3051,7 @@ index c6efb4a867a4bfa1ebb71e198b2ba30b478eadeb..761ba3afa5579c1ea75de319aa1640a6
      ${If} $TestFailureCount = 0
          ; On success, write the success metric and jump to the end
          FileWrite $Stdout "All stub installer tests passed"
-@@ -643,20 +634,6 @@ FunctionEnd
+@@ -643,20 +631,6 @@ FunctionEnd
  !insertmacro GetInstallationTypeTests FileWrite ACP
  !insertmacro GetInstallationTypeTests FileWriteUTF16LE UTF16
  
@@ -3046,6 +3072,39 @@ index c6efb4a867a4bfa1ebb71e198b2ba30b478eadeb..761ba3afa5579c1ea75de319aa1640a6
  Function TestGetHadExistingProfileFailure
    GetTempFileName $0
    Delete $0
+@@ -683,32 +657,6 @@ Function TestGetHadExistingProfileSuccess
+   RMDir /r $MockLocalAppDataFolder
+ FunctionEnd
+ 
+-Function TestGetProfileDirExistedFailure
+-  GetTempFileName $0
+-  Delete $0
+-  CreateDirectory $0
+-  StrCpy $MockLocalAppDataFolder $0
+-
+-  Call GetProfileDirExisted
+-  Pop $0
+-  ${AssertEqual} 0 "false"
+-
+-  RMDir $MockLocalAppDataFolder
+-FunctionEnd
+-
+-Function TestGetProfileDirExistedSuccess
+-  GetTempFileName $0
+-  Delete $0
+-  CreateDirectory "$0\Mozilla\Firefox"
+-  StrCpy $MockLocalAppDataFolder $0
+-
+-  Call GetProfileDirExisted
+-  Pop $0
+-  ${AssertEqual} 0 "true"
+-
+-  RMDir /r $MockLocalAppDataFolder
+-FunctionEnd
+-
+ Function TestIsInstallerLaunchedByDesktopLauncherNoParameter
+   StrCpy $MockParameters ""
+   Call IsInstallerLaunchedByDesktopLauncher
 diff --git a/browser/installer/windows/nsis/test_telemetry.nsh b/browser/installer/windows/nsis/test_telemetry.nsh
 deleted file mode 100644
 index 9ec8228026237fef3bc29eb7472ad24c03b2047d..0000000000000000000000000000000000000000
