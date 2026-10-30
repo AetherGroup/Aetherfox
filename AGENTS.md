@@ -1064,6 +1064,23 @@ headers: there should be none.
     build with patch 17 asks nothing until the user presses "Check for
     updates"; the only request after the update is the one the settings pane
     makes when it is opened, and it answers "up to date".
+58. **⚠️ Patch files must be stored byte-exact, and gate 1 must run on the
+    committed blobs, not on the working copy.** `* text=auto eol=lf` rewrote
+    `01-base-product.patch` on commit, which silently stripped the CRLF from
+    the `ipc/app/module.ver` hunk. That file is CRLF **upstream**, and
+    `git apply` refuses an LF hunk against a CRLF target: the released stack
+    applied locally (the working copy still had the CRLF bytes) and failed from
+    `git show HEAD:...`. Fix: `patches/** -text` in `.gitattributes`, keep the
+    CRLF bytes in that one hunk, and everything else LF. The inverse bites too:
+    a patch stored **all-CRLF** applies to LF targets but writes CRLF into the
+    result — patch 03 had 910 CRLF lines and left
+    `security/manager/ssl/SSLServerCertVerification.cpp` 100% CRLF. Gate 2
+    cannot see it because both trees carry the same contamination; the tell is
+    `git diff --stat` showing a whole-file rewrite for a file that only lost
+    274 lines. After every commit, export the series from HEAD
+    (`git show HEAD:patches/...`) into a scratch dir, apply it to a fresh base
+    clone, and only then call gate 1 green.
+
 ---
 
 ## 9. Current state and open decisions
