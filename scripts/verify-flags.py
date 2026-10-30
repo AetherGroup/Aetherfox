@@ -7,7 +7,7 @@ Verifies in the objdir and the packaged dist that:
   - MOZ_SERVICES_HEALTHREPORT is off,
   - toolkit.telemetry.server is empty in greprefs.js,
   - policies.json is absent (zero policies),
-  - no bundled XPI in distribution/extensions (native engine since 150).
+  - no bundled XPI in distribution/extensions (no adblock since 0.1).
 Exits non-zero if anything failed (for CI).
 
 Usage:
@@ -103,7 +103,7 @@ def main():
 
     xpis = list((dist / "distribution" / "extensions").glob("*.xpi")) \
         if (dist / "distribution" / "extensions").is_dir() else []
-    check("no bundled XPI (native engine since 150)", len(xpis) == 0,
+    check("no bundled XPI (no adblock since 0.1)", len(xpis) == 0,
           f"{len(xpis)} xpi(s)")
 
     ini = dist / "application.ini"

@@ -11,7 +11,7 @@ without memory, read the whole thing before touching anything.
 - Firefox **156.0.1** (`FIREFOX_156_0_1_RELEASE`, base commit
   `19a90052d7869f7b194ff27d316520366ad1d592`) with telemetry, Sync/FxA and
   several Mozilla subsystems removed.
-- The code **is not edited here**: the source of truth is **18 thematic patch
+- The code **is not edited here**: the source of truth is **19 thematic patch
   groups** in `patches/core/`, applied in the order given by `patches/series`
   (squash of the 171-unit history; each group file carries its member headers,
   per-unit backup outside the repo).
@@ -23,7 +23,7 @@ without memory, read the whole thing before touching anything.
 ### Repo topology
 
 ```
-patches/series            application order (18 patches)
+patches/series            application order (19 patches)
 patches/core/NN-*.patch   the patches; one file can be touched by several
 branding/                 29 brand assets (canonical source; kept OUT of git)
 third_party/               third-party downloads (git-ignored; retired: uBlock)
@@ -346,7 +346,7 @@ tree comparison.
 
 | # | What it checks | How |
 |---|---|---|
-| 1 | The series applies on the base | `python scripts/sync.py --apply` → "20 applied, 0 in conflict" |
+| 1 | The series applies on the base | `python scripts/sync.py --apply` → "19 applied, 0 in conflict" |
 | 2 | **The stack rebuilds the whole tree** | clean clone test (below) |
 | 3 | Build privacy defaults | `python scripts/verify-flags.py --objdir ...` → "TODO OK" |
 | 4 | It compiles and packages | `python scripts/build.py` → rc 0 |
@@ -373,9 +373,9 @@ Then compare the two trees: in each, `git status --porcelain
 fine.
 
 What it should give (measured on `FIREFOX_156_0_1_RELEASE` + the 19 groups):
-**18,569** files touched in both, 0 exclusive to one side, 0 differing
-contents (1,736 byte-compared). Of those 18,569, **15,018 are the `mobile/`
-removal** that `sync.py` does; the stack itself is **3,551**. If you compare
+**18,563** files touched in both, 0 exclusive to one side, 0 differing
+contents (1,730 byte-compared). Of those 18,563, **15,018 are the `mobile/`
+removal** that `sync.py` does; the stack itself is **3,545**. If you compare
 against a tree where `mobile/` is still present, exclude it or the count will
 not add up.
 
@@ -1040,7 +1040,7 @@ headers: there should be none.
     Windows `app.update.auto` is **per installation**, not per profile: it
     lives in `C:\ProgramData\Mozilla-<guid>\updates\<install hash>\update-config.json`
     (the profile pref is only a migration source), which is why editing
-    `prefs.js` changes nothing. Patch 20 closes all of it: no startup check,
+    `prefs.js` changes nothing. Patch 17 closes all of it: no startup check,
     the prompt instead of a download, `getAppUpdateAutoEnabled()` always
     `false`, and no `policyFn` on the per-installation update prefs (the
     `app-auto-updates-*` policies are upstream's; the product does not use
@@ -1059,15 +1059,25 @@ headers: there should be none.
     prefs are re-applied on every session otherwise) and delete the leftover
     `user_pref("app.update.disabledForTesting", true)` afterwards, because
     those sessions write it back into `prefs.js`.
-    End-to-end proof of patch 20 with the local AUS: the previous build asked
+    End-to-end proof of patch 17 with the local AUS: the previous build asked
     `127.0.0.1:8000` on every start (`/update/.../update.xml?force=1`), the
-    build with patch 20 asks nothing until the user presses "Check for
+    build with patch 17 asks nothing until the user presses "Check for
     updates"; the only request after the update is the one the settings pane
     makes when it is opened, and it answers "up to date".
 ---
 
 ## 9. Current state and open decisions
 
+- **Own adblock removed (2026-10-30, per user).** The stack no longer carries
+  a native blocker: the engine modules, the bundled/updatable filter lists,
+  the Ad blocking settings section, the panel rows and every `aether.blocking.*`
+  pref are gone. Stock Enhanced Tracking Protection is untouched again (the
+  `browser.contentblocking.category=custom` override went with the blocker),
+  and the uBlock consent card is out of the first-run setup. The project's
+  fingerprinting work, the shields panel and the frozen known-fingerprinter
+  guard stay. Old patches 16-18 were deleted and the tail renumbered:
+  `16-website-urls`, `17-update-manual-only`, `18-shields-clear-cache`,
+  `19-mozalloc-macro`. Decision record: `docs/decisions/0002-stock-etp-restored.md`.
 - **Aetherfox rename (2026-10-19, per user).** The product is **Aetherfox**;
   the organisation, publisher, `-vendor-short-name` and every `CompanyName` are
   **Aether Group**. Renamed: the brand FTL/properties, both wordmark SVGs, the
@@ -1099,16 +1109,16 @@ headers: there should be none.
   (kept as Aether for the profile dir). Patch 01 now prints
   `MOZ_APP_DISPLAYNAME` in `DumpVersion` and `DumpFullVersion`
   (`toolkit/xre/nsAppRunner.cpp`), so gate 5 reads `Aether Aetherfox 156.0.1`.
-  Gates: 1 `20 applied, 0 in conflict`; 2 whole-tree green (18,569 files in both, 0 exclusive, 0 differing; 1,736 byte-compared);
+  Gates: 1 `19 applied, 0 in conflict`; 2 whole-tree green (18,563 files in both, 0 exclusive, 0 differing; 1,730 byte-compared);
   3 `TODO OK`; 4 build + package exit 0; 5 `Aether Aetherfox 156.0.1`.
-- **Patch 20: manual-only updates, in code (per user).** The user was
+- **Patch 17: manual-only updates, in code (per user).** The user was
   explicit: no automatic updates ever, and the rule must live in the code,
-  not in a policy or a setting. `manualUpdateOnly` (patch 09) was not
+  not in a policy or a setting. `manualUpdateOnly` was not
   enough: `UpdateService.#asyncInit` -> `_attemptResume()` still checked on
   every startup, and `_selectAndInstallUpdate()` only looked at
   `app.update.auto`, so writing `true` in the per-installation
   `update-config.json` got a MAR downloaded and installed unattended. Patch
-  20 removes the startup check, forces the "offer it to the user" branch,
+  17 removes the startup check, forces the "offer it to the user" branch,
   makes `UpdateUtils.getAppUpdateAutoEnabled()` always `false` and drops the
   `policyFn` hooks (the `app-auto-updates-*` policies are upstream's; the
   product does not use policies for updates). Trap: #56.
@@ -1154,7 +1164,7 @@ headers: there should be none.
   `RecordTelemetryProbes`, `DebugOnly` for the pending-queue assert). Two more
   headers joined patch 03 (`uriloader/preload/PreloaderBase.h`,
   `security/manager/ssl/NSSSocketControl.h`): the new counts are
-  18,569/1,736.
+  18,563/1,730.
 - **All five gates green (a previous session).** 1: the series applies to a clean
   checkout with 0 conflicts. 2: **whole-tree comparison green, 2,323 files
   touched in both trees, 0 exclusive, 0 differing contents** (SHA-256 per
@@ -1414,7 +1424,9 @@ headers: there should be none.
   `%TEMP%\opencode\revert170-173-backup\`. End goal: port every remaining
   option to the new page, then delete `about:preferences` entirely.
 - **Squash (2026-10-16, per user): 171 units compacted into 18 thematic
-  groups** (`01-base-product` … `18-adblock-polish`, largest 9.5 MB).
+  groups** (`01-base-product` … `18-adblock-polish`, largest 9.5 MB). The
+  adblock groups were dropped on 2026-10-30 (see the removal bullet above),
+  leaving **19 groups** (`01-base-product` … `19-mozalloc-macro`).
   Method: scratch clone at base + one commit per unit (`C:\cr\sq`, kept
   while regrouping stays possible), each group regenerated as
   `git diff --no-renames --full-index --binary` between chain states —

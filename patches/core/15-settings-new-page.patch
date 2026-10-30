@@ -501,7 +501,7 @@ index d97d92add28cc86e44f9e8a159802c8538b06286..35822cd9b4ed47d99dcc61fb8bca08c4
        let webrtcPreviewSection = doc.getElementById("webRTC-preview-section");
        webrtcPreviewSection.hidden = true;
 diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
-index 1af4c8c91730ce6855e1f50580614416c38e05e7..364b735238307a7ce34e4cb5be3b316e0be9728e 100644
+index 537da4d1ade74d187f6b613f5a63edba7ef164df..f5b17d7bd02f7ada4d1bf08e2952940f268dda96 100644
 --- a/browser/app/profile/firefox.js
 +++ b/browser/app/profile/firefox.js
 @@ -3324,12 +3324,18 @@ pref("aether.fingerprinting.canvasNoise2d", true);

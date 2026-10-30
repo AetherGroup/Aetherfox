@@ -13,12 +13,12 @@ Squashed from 11 units:
   (Standard/Strict/Custom). Layer toggles live in about:aethersettings
   and the stock popups, not here. New template, controller, strings and
   styles; old popup stays in tree unused (later cleanup).
-  ETP retired underneath per user vote: blocking families off by default
-  (tracking/social/fingerprint/crypto/email + FPP, both modes); cookie
-  partitioning, query stripping and bounce protection stay until our
-  shields cover state. Gate: headed visual by the reporter (panel opens,
-  master flips pref, settings link opens, broken-site exempts), zero
-  chrome errors, full gates.
+  This unit originally retired ETP underneath the panel (blocking families
+  off, both modes). The 0.1 stack drops that override again: stock Enhanced
+  Tracking Protection stays exactly as Firefox ships it. Cookie
+  partitioning, query stripping and bounce protection were never touched.
+  Gate: headed visual by the reporter (panel opens, master flips pref,
+  settings link opens, broken-site exempts), zero chrome errors, full gates.
   
   [core/123-trust-panel-reroute.patch]
   Aether: route the trust panel button to our shields
@@ -171,11 +171,11 @@ Squashed from 11 units:
   zone where local time matters. Own toggle at the top of Settings > Privacy &
   Security. Residual: service workers have no document on their creation path
   and keep the OS zone.
-  diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
-index 54e12cda97a7a736f76fd15da7ea308c16a0cf7c..1af4c8c91730ce6855e1f50580614416c38e05e7 100644
+diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
+index 54e12cda97a7a736f76fd15da7ea308c16a0cf7c..537da4d1ade74d187f6b613f5a63edba7ef164df 100644
 --- a/browser/app/profile/firefox.js
 +++ b/browser/app/profile/firefox.js
-@@ -3328,9 +3328,45 @@ pref("aether.fingerprinting.audioNoise", true);
+@@ -3328,9 +3328,33 @@ pref("aether.fingerprinting.audioNoise", true);
  pref("aether.fingerprinting.hardwareConcurrency", true);
  // Aether layer B: nudge canvas measureText widths by one keyed ulp.
  pref("aether.fingerprinting.textMetrics", true);
@@ -204,18 +204,6 @@ index 54e12cda97a7a736f76fd15da7ea308c16a0cf7c..1af4c8c91730ce6855e1f50580614416
 +// Anonymity set: stock Firefox UA unless the user opts into the honest app
 +// token (the tail is ~17 stable bits while our set is small). Live toggle.
 +pref("general.useragent.showAppToken", false);
-+// ETP retired: the Aether shields panel replaces it. Blocking families
-+// off. Cookie partitioning, query stripping and bounce protection stay
-+// until our shields cover state (none of them affects fingerprinting
-+// measurements).
-+pref("browser.contentblocking.category", "custom");
-+pref("privacy.trackingprotection.enabled", false);
-+pref("privacy.trackingprotection.pbmode.enabled", false);
-+pref("privacy.trackingprotection.socialtracking.enabled", false);
-+pref("privacy.trackingprotection.fingerprinting.enabled", false);
-+pref("privacy.trackingprotection.cryptomining.enabled", false);
-+pref("privacy.trackingprotection.emailtracking.enabled", false);
-+pref("privacy.trackingprotection.emailtracking.pbmode.enabled", false);
 +pref("privacy.fingerprintingProtection", false);
 +pref("privacy.fingerprintingProtection.pbmode", false);
  // Local update channel (dev alpha only): AUS server on localhost.

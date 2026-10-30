@@ -18,11 +18,6 @@ with their source.
 
 ## Bundled third-party components
 
-### uBlock Origin
-
-The uBlock Origin XPI bundled in builds is fetched unmodified from
-[gorhill/uBlock](https://github.com/gorhill/uBlock) releases and is signed
-by Mozilla. It keeps its own license; see the upstream repository.
-
-The XPI itself is not committed here. `aether.deps.ini` records the pinned
-version and the download URL.
+No browser extension and no filter list is bundled. The offline setup packs
+two OFL fonts (Quicksand and Comfortaa) and the 7-Zip SFX stub; each keeps
+its own license, and none of them is committed here.

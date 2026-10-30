@@ -4,10 +4,10 @@
    the user accepts in `aether://setup`.
 2. No bloat, no noise, no ads. Minimal new-tab page, no Pocket, no sponsored
    content.
-3. Unbiased ad blocking: the blocking engine is integrated natively
-   (own code inspired by uBlock Origin and Brave), with no paid
-   allowlist. Filter lists ship as per-release snapshots; automatic or
-   manual updates are the user's choice.
+3. No ad blocker and no filter lists: ads and trackers are left to the
+   tracking protection Firefox already ships. The only blocking Aetherfox
+   adds is a frozen, in-tree snapshot of known fingerprinting scripts,
+   behind its own switch.
 4. No Mozilla dependencies by default: telemetry, Normandy, Shield and
    studies are off at compile time (`mozconfig`), by preference and by
    policy.

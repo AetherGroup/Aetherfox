@@ -4,7 +4,7 @@ First release. Firefox 156.0.1 with telemetry, Sync/FxA and several Mozilla
 subsystems removed, shipped as a public patch stack so the whole delta against
 upstream can be audited without trusting a binary.
 
-The stack holds 22 thematic groups (squash of the 171-unit history). Each
+The stack holds 19 thematic groups (squash of the 171-unit history). Each
 group file carries the headers of its member units, so nothing of the
 history is lost; the per-unit backup lives outside the repo.
 
@@ -100,25 +100,7 @@ Redesign toggles, fine-grained switches, standalone skeleton, button reroute, de
 
 Squashed from 17 units: 133-settings-redesign-toggles, 134-fine-grained-switches, 135-standalone-settings-skeleton, 136-settings-button-reroute, 137-interface-design-switch, 138-media-device-shield, 139-gamepad-normalization, 140-motion-sensor-shield, 141-normalize-audio-samplerate, 142-intl-coherence, 143-record-battery-absence, 144-record-connection-absence, 145-geometry-strict-layer, 146-standard-strict-split, 147-settings-copy-and-presets, 148-standard-defaults, 149-profile-radios.
 
-## 16. Aether: native blocker engine
-
-Bundled uBlock removed, engine core, snapshot lists, CNAME wiring, updates settings, cosmetic filtering, redirect surrogates, has/selectors, has-text, scriptlets, fingerprint blocking in Standard, parity phase A, list catalog.
-
-Squashed from 13 units: 150-remove-bundled-ublock, 151-blocker-engine-core, 152-blocker-snapshot-lists, 153-blocker-wiring-cname, 154-blocker-updates-settings, 155-blocker-cosmetic, 156-blocker-redirect-surrogates, 157-blocker-has-selectors, 158-blocker-has-text, 159-blocker-scriptlets, 160-fingerprint-blocking-in-standard, 161-ublock-parity-phase-a, 162-ublock-list-catalog.
-
-## 17. Aether: adblock sections
-
-Own Ad blocking section, site panel, blocked count, list layout, master switch, master and custom lists, fingerprint copy and Strict opt-ins.
-
-Squashed from 7 units: 163-adblock-own-section, 164-panel-site-adblock, 165-shield-blocked-count, 166-adblock-list-layout, 167-adblock-master-switch, 168-adblock-master-and-custom-lists, 169-fingerprint-copy-and-strict-optins.
-
-## 18. Aether: adblock and settings polish
-
-Filter-list update modes, design-switch removal from the new page, per-list update status, subhead hierarchy.
-
-Squashed from 4 units: 171-list-update-modes, 174-no-design-switch, 175-list-update-status, 176-subhead-hierarchy.
-
-## 19. Website moves to GitHub Pages
+## 16. Website moves to GitHub Pages
 
 No aether.browser domain: help/feedback links, installer defines,
 release-notes/homepage/update-manual prefs and the report-site
@@ -126,13 +108,13 @@ placeholder now point at the Pages site
 (https://aethergroup.github.io/aether, same paths). Theme add-on IDs
 are identifiers, not links, and stay untouched.
 
-## 20. Aether: manual-only updates
+## 17. Aether: manual-only updates
 
 Updates are user-driven, enforced in the code: no startup check, no automatic
 download, no policy hooks. The user starts the search, the user starts the
 download, the user restarts.
 
-## 21. Aether: clear the page cache from the shields panel
+## 18. Aether: clear the page cache from the shields panel
 
 New option in the Aetherfox Shields panel: "Clear page cache". It drops
 the pages the browser kept on disk and in memory with the same sanitiser
@@ -143,7 +125,7 @@ messages parsed as junk, which surfaced as "uncaught exception: undefined"
 in the console on every window; the panel's blocked-count line now passes
 its initial argument instead of tripping the Fluent resolver.)
 
-## 22. Aether: no macro redefinition in the allocator
+## 19. Aether: no macro redefinition in the allocator
 
 `memory/mozalloc/cxxalloc.cpp` redefined `MOZALLOC_EXPORT_NEW` after
 `mozilla/mozalloc.h` had already set it, so clang reported

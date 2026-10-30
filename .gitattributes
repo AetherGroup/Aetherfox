@@ -1,6 +1,9 @@
-# Aether: the whole repo in LF. The patches must apply byte-exact;
-# CRLF would break `git apply --check` and the series verification.
+# Aether: the repo is LF, except where a patch has to carry bytes verbatim.
+# A hunk that patches a CRLF upstream file (ipc/app/module.ver) must keep its
+# CRLF content lines or `git apply` refuses it; normalizing to LF breaks the
+# series on a fresh clone. Patches are therefore stored byte-exact.
 * text=auto eol=lf
+patches/** -text
 *.png binary
 *.ico binary
 *.xpi binary

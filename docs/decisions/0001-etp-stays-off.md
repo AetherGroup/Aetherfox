@@ -1,8 +1,8 @@
 # Decision 0001: Enhanced Tracking Protection stays off
 
-- Status: **CLOSED** (decided 2026-10-10, Aether 0.1 / Firefox 156.0.1)
-- Reopening this requires a new decision record; the Nova 157 evaluation
-  does not reopen it implicitly.
+- Status: **SUPERSEDED** by
+  [decision 0002](0002-stock-etp-restored.md) (2026-10-30). Kept for the
+  record; the ETP override described here is no longer in the tree.
 
 ## Decision
 

@@ -14,12 +14,12 @@ From scratch, in the panel that already holds the protection switches:
   - aetherProtections.ftl: the strings.
   - panel.css / jar.inc.mn: the new icon (aether-cache.svg).
 diff --git a/browser/base/content/browser-aetherProtections.js b/browser/base/content/browser-aetherProtections.js
-index fa2756fb09e8defe83c0f0ff5d0d7253a8cc6947..35ba832dbf18ed0cc4eb199177fee09560a17bab 100644
+index bcd7a1533394c5122a8acf03c93471d6528e7565..056ce4e645be1718e813bba210b746bb7a4e2b43 100644
 --- a/browser/base/content/browser-aetherProtections.js
 +++ b/browser/base/content/browser-aetherProtections.js
-@@ -17,6 +17,12 @@ const { AetherBlocker } = ChromeUtils.importESModule(
-   "resource://gre/modules/AetherBlocker.sys.mjs"
- );
+@@ -13,6 +13,12 @@
+  * this site only (exact base domain), then also offers the reload.
+  */
  
 +// The page cache is cleared with the same sanitiser the "Clear browsing
 +// data" dialog uses, so the disk and the memory cache go away in one go.
@@ -27,10 +27,10 @@ index fa2756fb09e8defe83c0f0ff5d0d7253a8cc6947..35ba832dbf18ed0cc4eb199177fee095
 +  "resource:///modules/Sanitizer.sys.mjs"
 +);
 +
- const AETHER_COUNT_TOPIC = "aether-blocking-count";
- 
  var gAetherProtections = {
-@@ -61,6 +67,12 @@ var gAetherProtections = {
+   // Slim panel: only the master pref lives here. Layer toggles live in
+   // about:aethersettings and the stock popups (their own controllers).
+@@ -52,6 +58,12 @@ var gAetherProtections = {
        "click",
        () => this._onReload()
      );
@@ -40,10 +40,10 @@ index fa2756fb09e8defe83c0f0ff5d0d7253a8cc6947..35ba832dbf18ed0cc4eb199177fee095
 +    this.$("#aether-protections-cache-reload").addEventListener("click", () =>
 +      this._onReload()
 +    );
+     window.addEventListener("unload", () => this._uninit(), { once: true });
      this._inited = true;
    },
- 
-@@ -147,6 +159,7 @@ var gAetherProtections = {
+@@ -69,6 +81,7 @@ var gAetherProtections = {
      this._ensureInit();
      this.render();
      this.$("#aether-protections-reload-row").hidden = true;
@@ -51,8 +51,8 @@ index fa2756fb09e8defe83c0f0ff5d0d7253a8cc6947..35ba832dbf18ed0cc4eb199177fee095
      let anchor = document.getElementById(
        "tracking-protection-icon-container"
      );
-@@ -383,6 +396,23 @@ var gAetherProtections = {
-     gBrowser.reload();
+@@ -152,6 +165,23 @@ var gAetherProtections = {
+     this.$("#aether-protections-reload-row").hidden = false;
    },
  
 +  // Clear the page cache: every page the browser kept on disk (and in
@@ -72,9 +72,9 @@ index fa2756fb09e8defe83c0f0ff5d0d7253a8cc6947..35ba832dbf18ed0cc4eb199177fee095
 +    row.hidden = false;
 +  },
 +
-   _onSettingsLink() {
+   _onReload() {
      this.panel.hidePopup();
-     window.openTrustedLinkIn("about:aethersettings#shield", "tab");
+     gBrowser.reload();
 diff --git a/browser/components/controlcenter/content/aetherProtectionsPanel.inc.xhtml b/browser/components/controlcenter/content/aetherProtectionsPanel.inc.xhtml
 index 9123f4a801ce57628c3b55be9274be8f631705f0..522199ec70ced8c6e3b6a6988b62a97a3d7bc84e 100644
 --- a/browser/components/controlcenter/content/aetherProtectionsPanel.inc.xhtml
@@ -102,13 +102,13 @@ index 9123f4a801ce57628c3b55be9274be8f631705f0..522199ec70ced8c6e3b6a6988b62a97a
        <html:span class="aether-d" data-l10n-id="aether-protections-reload-desc"></html:span>
        <html:button id="aether-protections-reload-button" class="aether-go" data-l10n-id="aether-protections-reload"></html:button>
 diff --git a/browser/locales/en-US/browser/aetherProtections.ftl b/browser/locales/en-US/browser/aetherProtections.ftl
-index 1e094b7be6174104334f7a679b611fb11348e9b3..4831d2ec0a0e7613c5e4c040e77226f53cb7b64c 100644
+index f1fb3d9499891885bdaade3df0e7fa92a1e1c81a..0b2bbb650f49f24622901bac1dc3c53ba8a2dcc5 100644
 --- a/browser/locales/en-US/browser/aetherProtections.ftl
 +++ b/browser/locales/en-US/browser/aetherProtections.ftl
-@@ -20,6 +20,9 @@ aether-protections-settings-title = Fingerprint settings
+@@ -13,6 +13,9 @@ aether-protections-master-toggle =
+     .aria-label = Fingerprint protection
+ aether-protections-settings-title = Fingerprint settings
  aether-protections-settings-desc = Choose Standard, Strict or Custom.
- aether-protections-adblock-settings-title = Adblock settings
- aether-protections-adblock-settings-desc = Ads, trackers and annoyances, blocked before they load.
 +aether-protections-clear-cache-title = Clear page cache
 +aether-protections-clear-cache-desc = Drop the pages the browser kept, so they load from the network again.
 +aether-protections-clear-cache-done = Page cache cleared.

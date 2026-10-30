@@ -368,7 +368,8 @@ def main():
     # Distribution dir: only distribution.ini is carried by the series (ARP
     # reads the version from it). No policies: the packaging patch does
     # NOT stage a policies.json (it does not exist in the repo). No bundled
-    # extensions since 150 (uBO XPI retired; the engine is native now).
+    # extensions at all: 0.1 dropped the own adblock engine together with the
+    # retired uBO XPI.
     dist = src / "browser" / "app" / "distribution"
     if dist.is_dir():
         print("[aether] distribution: carried by the series (no staged binaries)")

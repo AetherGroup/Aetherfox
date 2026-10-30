@@ -382,7 +382,7 @@ The patches are the source of truth. Nothing proprietary, no hidden code path.
 
 ```
 firefox_version.txt      pinned upstream tag
-patches/series           application order, 18 thematic groups
+patches/series           application order, 19 thematic groups
 patches/core/*.patch     the changes
 branding/                name, icons, about dialog
 defaults/prefs/          sealed preferences
@@ -612,7 +612,7 @@ is enforced in code, not in configuration: `UpdateService.manualUpdateOnly` is
 unconditionally `true`, the service does not check when it resumes, and
 `UpdateUtils.getAppUpdateAutoEnabled()` always returns `false` so neither the
 per-installation `update-config.json` nor the upstream `app-auto-updates-*`
-policies can turn automatic updates on (patch 20).
+policies can turn automatic updates on (patch 17).
 
 To test the whole flow locally:
 

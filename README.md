@@ -27,7 +27,7 @@ Aetherfox is not a divergent hard fork. It pins an official Firefox release,
 clones it clean, and applies a stack of patches on top.
 
 **The patches are the source.** Everything in this repository is what Aetherfox
-changes relative to upstream Firefox, grouped in 18 thematic units. There is
+changes relative to upstream Firefox, grouped in 19 thematic units. There is
 no proprietary blob and no hidden code path.
 
 ```
@@ -45,10 +45,10 @@ Because Firefox itself is public, anyone can reproduce the exact browser.
 
 ## What's in the browser
 
-**A native ad blocker**, designed from scratch around the established
-open-source filter-list formats. Snapshot lists ship with the browser and
-refresh from the same public sources; per-site switches decide what runs
-where.
+**Stock Enhanced Tracking Protection, untouched.** Aetherfox ships no ad
+blocker, no filter lists and no blocking engine of its own: ads and trackers
+are left to the tracking protection Firefox already provides. The only
+blocking left is the fingerprinting-script guard below.
 
 **Graded anti-fingerprinting protections.** Quiet layers that never break
 sites, plus stricter ones for those who want them, each with its own switch

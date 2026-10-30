@@ -23,10 +23,10 @@ index 5c16c3bab161eadcd2c46335ae542d253937a7a2..84d5d4b8113cbc33a0bb2f8b2b663420
 +about=Aetherfox
 \ No newline at end of file
 diff --git a/browser/app/distribution/moz.build b/browser/app/distribution/moz.build
-index b174449a09895020bfda84645b85deebe42c7be8..97e11551a43f96ce21c8a9bef655452402079b9d 100644
+index b174449a09895020bfda84645b85deebe42c7be8..f6fdab79985017d0ebff857b4d4eb6bc131b0bf1 100644
 --- a/browser/app/distribution/moz.build
 +++ b/browser/app/distribution/moz.build
-@@ -4,7 +4,13 @@
+@@ -4,7 +4,8 @@
  
  DIST_SUBDIR = ""
  
@@ -38,11 +38,6 @@ index b174449a09895020bfda84645b85deebe42c7be8..97e11551a43f96ce21c8a9bef6554524
 +# No policies.json: zero managed policies.
 +FINAL_TARGET_FILES.distribution += [
 +    "distribution.ini",
-+]
-+
-+# Aether: bundled extensions. XPIs are staged by aether sync.py from third_party/ (see aether.deps.ini); they install on first run and remain user-removable. No auto-update without consent (aether-services v2).
-+FINAL_TARGET_FILES.distribution.extensions += [
-+    "extensions/uBlock0@raymondhill.net.xpi",
 +]
 diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
 index 3d9a8eb057d7506798783804518fdea0ba9ac366..d7a1651303b1c736bd761be57270fb64e6ae80cd 100644
@@ -2879,10 +2874,10 @@ index d5b79f6dfa98820b2e6f22102fa63cb362ca6c8c..abd999aec262b0217eca0e17e6dd599f
  if buildconfig.substs.get('MOZ_NORMANDY'):
 diff --git a/browser/components/aether/content/setup.html b/browser/components/aether/content/setup.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..bb2524dec62519b0b0e9a582f6676fdc82346cfd
+index 0000000000000000000000000000000000000000..77069de25efa381e23f2715041169be2c71cd293
 --- /dev/null
 +++ b/browser/components/aether/content/setup.html
-@@ -0,0 +1,101 @@
+@@ -0,0 +1,93 @@
 +<!DOCTYPE html>
 +<!-- This Source Code Form is subject to the terms of the Mozilla Public
 +   - License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -2929,10 +2924,6 @@ index 0000000000000000000000000000000000000000..bb2524dec62519b0b0e9a582f6676fdc
 +    <span><span class="t">Browser updates</span><br>
 +    <span class="d">Check the Aetherfox update endpoint for new versions. Off by default in v1.</span></span></label></div>
 +
-+  <div class="card"><label><input type="checkbox" id="opt-ublock">
-+    <span><span class="t">uBlock filter lists</span><br>
-+    <span class="d">Refresh blocker lists through the Aetherfox proxy instead of third parties.</span></span></label></div>
-+
 +  <div class="card"><label><input type="checkbox" id="opt-sync">
 +    <span><span class="t">Sync</span><br>
 +    <span class="d">Sync bookmarks and settings via your own Aetherfox services endpoint.</span></span></label></div>
@@ -2952,7 +2943,6 @@ index 0000000000000000000000000000000000000000..bb2524dec62519b0b0e9a582f6676fdc
 +const P = {
 +  master: "services.aether.enabled",
 +  updates: "services.aether.updates.enabled",
-+  ublock: "services.aether.ublock.enabled",
 +  sync: "services.aether.sync.enabled",
 +  origin: "services.aether.origin",
 +  schema: "services.aether.schemaVersion",
@@ -2961,18 +2951,15 @@ index 0000000000000000000000000000000000000000..bb2524dec62519b0b0e9a582f6676fdc
 +function load() {
 +  const g = (k, dflt) => { try { return Services.prefs.getBoolPref(k); } catch { return dflt; } };
 +  document.getElementById("opt-updates").checked = g(P.updates, false);
-+  document.getElementById("opt-ublock").checked = g(P.ublock, false);
 +  document.getElementById("opt-sync").checked = g(P.sync, false);
 +  try { document.getElementById("opt-origin").value = Services.prefs.getCharPref(P.origin); } catch {}
 +}
 +document.getElementById("save").addEventListener("click", () => {
 +  const u = document.getElementById("opt-updates").checked;
-+  const b = document.getElementById("opt-ublock").checked;
 +  const s = document.getElementById("opt-sync").checked;
 +  Services.prefs.setBoolPref(P.updates, u);
-+  Services.prefs.setBoolPref(P.ublock, b);
 +  Services.prefs.setBoolPref(P.sync, s);
-+  Services.prefs.setBoolPref(P.master, u || b || s);
++  Services.prefs.setBoolPref(P.master, u || s);
 +  const origin = document.getElementById("opt-origin").value.trim();
 +  if (origin) { Services.prefs.setCharPref(P.origin, origin); }
 +  Services.prefs.setIntPref(P.schema, 1);
